@@ -1,7 +1,7 @@
 """
 
 Usage:
-    segmentation [-p]
+    segmentation [--param=PARAM]
 
 """
 import math
@@ -10,15 +10,15 @@ import os.path
 import sys
 import time
 from abc import ABC, abstractmethod
-import docopt
+from docopt import docopt
 
 sys.path.insert(1, "/home/abramov/ASB-Project")
 from scripts.helpers.helpers import ChromPos, pack
 
 
 def test():
-    args = docopt.docopt(__doc__)
-    params = args['-p'] or 'no params'
+    args = docopt(__doc__)
+    params = args['--param'] or 'no params'
     print("console comand with params: " + params)
 
 
