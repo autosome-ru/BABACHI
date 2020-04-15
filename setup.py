@@ -8,7 +8,12 @@ setup(
     long_description=open(join(dirname(__file__), 'README.txt')).read(),
     entry_points={
         'console_scripts': [
-            'segmentation = scripts:test',
+            'segmentation = scripts.PloidyEstimation:test',
         ],
-    }
+    },
+    install_requires=[
+        'docopt>=0.6.2',
+        'numpy>=1.18.0',
+        'pkg-resources>=0.0.0'
+    ]
 )
