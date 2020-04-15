@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from docopt import docopt
 
 sys.path.insert(1, "/home/abramov/ASB-Project")
-from scripts.helpers.helpers import ChromPos, pack
+from scripts.helpers import ChromPos, pack
 
 
 def test():
@@ -464,10 +464,11 @@ class ChromosomeSegmentation:  # chrom
 
     def unpack_line_or_false(self, line):
         try:
-            chr, pos, ID, ref, alt, ref_c, alt_c = unpack(line, use_in="PloidyEstimation")
+            # FIXME int pos ref_c alt_c
+            chr, pos, ref_c, alt_c = line.strip('\n').split('\t')[:4]
         except ValueError:
             return False
-        if chr != self.CHR or ID == '.':
+        if chr != self.CHR:
             return False
         return pos, ref_c, alt_c
 
@@ -708,26 +709,21 @@ if __name__ == '__main__':
             os.mkdir(ploidy_path + model)
         except:
             pass
-    GS = GenomeSegmentator(merged_vcfs_path, ploidy_path + model + '/' + key + "_ploidy.tsv", mode, states, b_penalty,
-                           prior={1.0: 528820834,
-                                  4 / 3: 939595,
-                                  1.5: 65802469,
-                                  2.0: 836167610,
-                                  2.5: 4644750,
-                                  3.0: 134757109,
-                                  4.0: 12509507,
-                                  5.0: 3049258,
-                                  6.0: 1665069
-                                  },
-                           # prior={1.0: 0.5772023955595271,
-                           #         1.3333333333333333: 0.0021981197199758295,
-                           #         1.5: 0.03626651172688886,
-                           #         2.0: 0.32028118409027445,
-                           #         2.5: 0.0020880383929476215,
-                           #         3.0: 0.048053530732062893,
-                           #         4.0: 0.010669694590770586,
-                           #         5.0: 0.0023994107964389034,
-                           #         6.0: 0.0008411143911137256}
+    GS = GenomeSegmentator(merged_vcfs_path,
+                           ploidy_path + model + '/' + key + "_ploidy.tsv",
+                           mode,
+                           states,
+                           b_penalty,
+                           # prior={1.0: 528820834,
+                           #        4 / 3: 939595,
+                           #        1.5: 65802469,
+                           #        2.0: 836167610,
+                           #        2.5: 4644750,
+                           #        3.0: 134757109,
+                           #        4.0: 12509507,
+                           #        5.0: 3049258,
+                           #        6.0: 1665069
+                           #        },
                            )
     try:
         GS.estimate_ploidy()
