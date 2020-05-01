@@ -4,7 +4,7 @@ Usage:
     segmentation <file> [options]
 
 Arguments:
-    <file>     input file in vcf format (chr pos ref_base alt_base)
+    <file>     Path to input file in vcf format (chr pos ref_base alt_base).
 
 Options:
     -h, --help                  Show help.
