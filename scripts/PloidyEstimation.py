@@ -1,26 +1,25 @@
 """
-
 Usage:
-    segmentation <file> [-O <out_dir> | --output <out_dir>] [-v | --verbose]
-    segmentation -h | --help
-    segmentation --version
+    segmentation <file> [options]
 
 Arguments:
     <file>     input file
 
 Options:
-    -h --help               Show this.
-    --version               Show version.
-    -v --verbose            Print additional messages during work time.
-    -O <out_dir> --output <out_dir>    Output directory path. [default: ./]
+
+    -h, --help              Show help.
+    -V, --version           Show version.
+    -v, --verbose           Print additional messages during work time.
+    -a, --add               Create additional file with segments and SNPs intersection.
+    --log <path>            Path to a verbose appending log.
+    -O <out_dir_or_file>, --output <out_dir_or_file>    Output directory or file path. [default: ./]
 """
 
 
 import math
 import numpy as np
 import os.path
-from schema import Schema, And, Use, SchemaError, Const
-import sys
+from schema import Schema, And, Use, SchemaError, Const, Optional, Or
 import time
 from scripts.helpers import ChromPos, pack
 from abc import ABC, abstractmethod
@@ -391,19 +390,21 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chrom
         counter = 0
         for first, last in tuples:
             counter += 1
-            print(
-                'Making {} out of {} segments from {} to {} for {} (part {} of {}).'.format(
-                    counter, len(tuples), first,
-                    last, self.chrom.CHR,
-                    self.name,
-                    len(self.chrom.get_subchromosomes_slices())))
+            if self.verbose:
+                print(
+                    'Making {} out of {} segments from {} to {} for {} (part {} of {}).'.format(
+                        counter, len(tuples), first,
+                        last, self.chrom.CHR,
+                        self.name,
+                        len(self.chrom.get_subchromosomes_slices())))
             PS = PieceSegmentation(self, first, last)
             PS.estimate()
             # print(PS.bposn)
             border_set |= set(PS.bposn)
         self.candidate_numbers = sorted(list(border_set))
         self.candidates_count = len(self.candidate_numbers)
-        print('SNPs in part: {}'.format(len(self.positions)))
+        if self.verbose:
+            print('SNPs in part: {}'.format(len(self.positions)))
         # print('{} candidates'.format(self.candidates_count))
 
         self.sc = [0] * (self.candidates_count + 1)  # sc[i] = best log-likelyhood among all segmentations of snps[0,i]
@@ -412,7 +413,8 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chrom
 
         self.estimate()
         self.estimate_BADs()
-        print('\n'.join(map(str, zip(self.ests, self.counts))))
+        if self.verbose:
+            print('\n'.join(map(str, zip(self.ests, self.counts))))
 
         # with open(log_filename, 'a') as log:
         #     # snps, effective length, sumcov, bare best likelyhood, total likelyhood, counts
@@ -524,8 +526,8 @@ class ChromosomeSegmentation:  # chrom
             self.bpos.append(self.positions[0])
         else:
             self.bpos.append((1, self.positions[0]))
-
-        print('Distance splits {}'.format(self.get_subchromosomes_slices()))
+        if self.verbose:
+            print('Distance splits {}'.format(self.get_subchromosomes_slices()))
 
         for part, (st, ed) in enumerate(self.get_subchromosomes_slices(), 1):
             good_snps = [snp for snp in self.SNPS[st:ed] if snp[1] + snp[2] >= 8]
@@ -559,22 +561,25 @@ class ChromosomeSegmentation:  # chrom
             self.bpos.append(self.length)
         else:
             self.bpos.append((self.positions[-1] + 1, self.length))
-
-        print('\nTotal SNPs: {},'
-              '\nestimated ploidys: {},'
-              '\nSNP counts {}'
-              '\nCritical gap {}'
-              '\nborder distances: {}'
-              .format(len(self.positions), self.ests, self.counts, round(self.CRITICAL_GAP),
-                      list(map(lambda x: (x, 1) if isinstance(x, (int, float)) else (x[0], x[1] - x[0]), self.bpos))))
-        print('{} time: {} s\n'.format(self.CHR, time.clock() - start_t))
+        if self.verbose:
+            print('\nTotal SNPs: {},'
+                  '\nestimated ploidys: {},'
+                  '\nSNP counts {}'
+                  '\nCritical gap {}'
+                  '\nborder distances: {}'
+                  .format(len(self.positions), self.ests, self.counts, round(self.CRITICAL_GAP),
+                          list(map(lambda x: (x, 1) if isinstance(x, (int, float)) else (x[0], x[1] - x[0]), self.bpos))))
+            print('{} time: {} s\n'.format(self.CHR, time.clock() - start_t))
 
 
 class GenomeSegmentator:  # seg
-    def __init__(self, file, out, segm_mode, extra_states=None, b_penalty='CAIC', prior=None, verbose=False):
+    def __init__(self, file, out, segm_mode, extra_states=None, b_penalty='CAIC',
+                 prior=None, verbose=False, additional_file_path=False, log_file_path=None):
 
         self.chrs = sorted(list(ChromPos.chrs.keys()))
 
+        self.additional_file = additional_file_path
+        self.log_file_path = log_file_path
         self.verbose = verbose
         self.mode = segm_mode
         if extra_states:
@@ -603,7 +608,8 @@ class GenomeSegmentator:  # seg
 
         for CHR in self.chrs:
             chrom = ChromosomeSegmentation(self, CHR, ChromPos.chrs[CHR])
-            print('{} total SNP count: {}'.format(CHR, chrom.LINES))
+            if self.verbose:
+                print('{} total SNP count: {}'.format(CHR, chrom.LINES))
             self.TOTAL_SNPS += chrom.LINES
             self.chr_segmentations.append(chrom)
 
@@ -689,7 +695,7 @@ class GenomeSegmentator:  # seg
         return segments
 
 #FIXME
-def checkInputFileFormat(opened_file):
+def check_input_file_format(opened_file):
     # for lines in opened_file:
 
     return True
@@ -699,14 +705,21 @@ def segmentation_start():
     # TODO: Global version (here and in setup.py)
     args = docopt(__doc__, version='BAD segmentation 0.1')
     schema = Schema({
-        '<file>': And(Const(os.path.exists, error='Input file should exist'),
-                      Use(open, error='Input file should be readable'),
-                      Const(checkInputFileFormat, error='Wrong input file format')
-                      ),
-        '--output': And(Const(os.path.exists, error='Output path should exist'),
-                        Const(os.path.isdir, error='Output path should be directory'),
-                        Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
-                        ),
+        '<file>': And(
+            Const(os.path.exists, error='Input file should exist'),
+            Use(open, error='Input file should be readable'),
+            Const(check_input_file_format, error='Wrong input file format')
+        ),
+        '--output': And(
+            Const(os.path.exists, error='Output path should exist'),
+            Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
+        ),
+        Optional('--log'): Or(
+            None, And(
+                Const(os.path.exists, error='Log path should exist'),
+                Const(lambda x: os.access(x, os.W_OK), error='No write permissions for log file')
+            )
+        ),
         str: bool
     })
     try:
@@ -716,8 +729,16 @@ def segmentation_start():
         exit(e)
 
     input_file = args['<file>']
-    print(input_file)
-    output_file_path = args['--output'] + os.path.splitext(os.path.basename(input_file.name))[0]
+    file_name = os.path.splitext(os.path.basename(input_file.name))[0]
+
+    log_file_path = args['--log']
+    if log_file_path and os.path.isdir(log_file_path):
+        log_file_path += file_name + '.log'
+
+    output_file_path = args['--output']
+    if os.path.isdir(output_file_path):
+        output_file_path += file_name + '.bed'
+
     verbose = args['--verbose']
     mode = 'corrected'
     b_penalty = 'CAIC'
@@ -729,6 +750,8 @@ def segmentation_start():
                            states,
                            b_penalty,
                            verbose=verbose,
+                           additional_file_path=args['--add'],
+                           log_file_path=log_file_path
                            )
     try:
         GS.estimate_ploidy()
