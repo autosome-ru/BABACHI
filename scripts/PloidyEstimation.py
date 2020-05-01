@@ -1,18 +1,18 @@
 """
+
 Usage:
     segmentation <file> [options]
 
 Arguments:
-    <file>     input file
+    <file>     input file in vcf format (chr pos ref_base alt_base)
 
 Options:
-
-    -h, --help              Show help.
-    -V, --version           Show version.
-    -v, --verbose           Print additional messages during work time.
-    -a, --add               Create additional file with segments and SNPs intersection.
-    --log <path>            Path to a verbose appending log.
-    -O <out_dir_or_file>, --output <out_dir_or_file>    Output directory or file path. [default: ./]
+    -h, --help                  Show help.
+    -V, --version               Show version.
+    -v, --verbose               Print additional messages during work time.
+    -a, --add                   Create additional file with segments and SNPs intersection.
+    --log <path>                Path to a verbose appending log.
+    -O <path>, --output <path>  Output directory or file path. [default: ./]
 """
 
 
