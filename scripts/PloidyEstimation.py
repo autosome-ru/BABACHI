@@ -1,7 +1,7 @@
 """
 
 Usage:
-    segmentation <file> [-o <out_dir> | --output <out_dir>] [-v | --verbose]
+    segmentation <file> [-O <out_dir> | --output <out_dir>] [-v | --verbose]
     segmentation -h | --help
     segmentation --version
 
@@ -12,13 +12,14 @@ Options:
     -h --help               Show this.
     --version               Show version.
     -v --verbose            Print additional messages during work time.
-    -o <out_dir> --output <out_dir>    Output directory path. [default: ./]
+    -O <out_dir> --output <out_dir>    Output directory path. [default: ./]
 """
 
 
 import math
 import numpy as np
 import os.path
+from schema import Schema, And, Use, SchemaError, Const
 import sys
 import time
 from scripts.helpers import ChromPos, pack
@@ -39,6 +40,7 @@ class Segmentation(ABC):
         self.positions = []
         self.SUM_COV = None
         self.LENGTH = None
+        self.verbose = None
 
         self.LINES = None
         self.last_snp_number = None
@@ -197,6 +199,7 @@ class PieceSegmentation(Segmentation):
         super().__init__()
         self.start = start
         self.end = end
+        self.verbose = sub_chrom.verbose
         self.LINES = end - start + 1
         self.positions = sub_chrom.positions[
                          sub_chrom.candidate_numbers[start]:sub_chrom.candidate_numbers[end - 1] + 2]
@@ -254,7 +257,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chrom
         self.LINES = len(self.SNPS)
         self.SUM_COV = sum(x[1] + x[2] for x in self.SNPS)
         self.b_penalty = chrom.b_penalty
-
+        self.verbose = chrom.verbose
         self.start = 0
         self.end = (self.LINES - 1) - 1  # index from 0 and #borders = #snps - 1
         self.candidate_numbers = [i for i in range(self.LINES - 1) if self.SNPS[i][0] != self.SNPS[i + 1][0]]
@@ -424,6 +427,8 @@ class ChromosomeSegmentation:  # chrom
         self.length = length  # length, bp
         self.RESOLUTION = seg.RESOLUTION
 
+        self.verbose = seg.verbose
+
         self.COV_TR = seg.COV_TR  # coverage treshold
         self.SEG_LENGTH = seg.SEG_LENGTH  # length of segment
         self.INTERSECT = seg.INTERSECT  # length of intersection
@@ -431,7 +436,7 @@ class ChromosomeSegmentation:  # chrom
         self.prior = seg.prior
         self.mode = seg.mode  # binomial or corrected
         self.b_penalty = seg.b_penalty
-        self.FILE = open(seg.FILE, 'r')
+        self.FILE = seg.FILE
         self.SNPS, self.LINES, self.positions = self.read_file_len()  # number of snps
         if self.LINES == 0:
             return
@@ -566,10 +571,11 @@ class ChromosomeSegmentation:  # chrom
 
 
 class GenomeSegmentator:  # seg
-    def __init__(self, file, out, segm_mode, extra_states=None, b_penalty='CAIC', prior=None):
+    def __init__(self, file, out, segm_mode, extra_states=None, b_penalty='CAIC', prior=None, verbose=False):
 
         self.chrs = sorted(list(ChromPos.chrs.keys()))
 
+        self.verbose = verbose
         self.mode = segm_mode
         if extra_states:
             self.i_list = sorted([1, 2, 3, 4, 5] + extra_states)
@@ -682,41 +688,51 @@ class GenomeSegmentator:  # seg
 
         return segments
 
+#FIXME
+def checkInputFileFormat(opened_file):
+    # for lines in opened_file:
 
-def test():
-    args = docopt(__doc__)
-    # TODO: Validation part(readable input file in correct format, existing directory)
+    return True
 
-    # schema = Schema({
-    #     'FILE': [Use(open, error='FILE should be readable')],
-    #     'PATH': And(os.path.exists, error='PATH should exist'),
-    #     '--count': Or(None, And(Use(int), lambda n: 0 < n < 5),
-    #                   error='--count=N should be integer 0 < N < 5')})
-    # try:
-    #     args = schema.validate(args)
-    # except SchemaError as e:
-    #     exit(e)
 
-    if args["--version"]:
-        #TODO: Global version (here and in setup.py)
-        print("1.1")
-    input_file = args["<file>"]
-    output_dir = args["--output"]
-    verbose = args["--verbose"]
+def segmentation_start():
+    # TODO: Global version (here and in setup.py)
+    args = docopt(__doc__, version='BAD segmentation 0.1')
+    schema = Schema({
+        '<file>': And(Const(os.path.exists, error='Input file should exist'),
+                      Use(open, error='Input file should be readable'),
+                      Const(checkInputFileFormat, error='Wrong input file format')
+                      ),
+        '--output': And(Const(os.path.exists, error='Output path should exist'),
+                        Const(os.path.isdir, error='Output path should be directory'),
+                        Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
+                        ),
+        str: bool
+    })
+    try:
+        args = schema.validate(args)
+    except SchemaError as e:
+        print(__doc__)
+        exit(e)
+
+    input_file = args['<file>']
+    print(input_file)
+    output_file_path = args['--output'] + os.path.splitext(os.path.basename(input_file.name))[0]
+    verbose = args['--verbose']
     mode = 'corrected'
     b_penalty = 'CAIC'
     states = [4 / 3, 1.5, 2.5, 6]
     t = time.clock()
     GS = GenomeSegmentator(input_file,
-                           output_dir,
+                           output_file_path,
                            mode,
                            states,
                            b_penalty,
+                           verbose=verbose,
                            )
     try:
         GS.estimate_ploidy()
     except Exception as e:
-        print(sys.argv[1])
         raise e
     if verbose:
         print('Total time: {} s'.format(time.clock() - t))
