@@ -14,6 +14,5 @@ setup(
     install_requires=[
         'docopt>=0.6.2',
         'numpy>=1.18.0',
-        'pkg-resources>=0.0.0'
     ]
 )

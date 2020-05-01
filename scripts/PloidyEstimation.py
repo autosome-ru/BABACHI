@@ -1,25 +1,29 @@
 """
 
 Usage:
-    segmentation [--param=PARAM]
+    segmentation <file> [-o <out_dir> | --output <out_dir>] [-v | --verbose]
+    segmentation -h | --help
+    segmentation --version
 
+Arguments:
+    <file>     input file
+
+Options:
+    -h --help               Show this.
+    --version               Show version.
+    -v --verbose            Print additional messages during work time.
+    -o <out_dir> --output <out_dir>    Output directory path. [default: ./]
 """
+
+
 import math
 import numpy as np
 import os.path
 import sys
 import time
+from scripts.helpers import ChromPos, pack
 from abc import ABC, abstractmethod
 from docopt import docopt
-
-sys.path.insert(1, "/home/abramov/ASB-Project")
-from scripts.helpers import ChromPos, pack
-
-
-def test():
-    args = docopt(__doc__)
-    params = args['--param'] or 'no params'
-    print("console comand with params: " + params)
 
 
 class Segmentation(ABC):
@@ -407,11 +411,11 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chrom
         self.estimate_BADs()
         print('\n'.join(map(str, zip(self.ests, self.counts))))
 
-        with open(log_filename, 'a') as log:
-            # snps, effective length, sumcov, bare best likelyhood, total likelyhood, counts
-            log.write(pack([self.LINES, self.LENGTH, self.SUM_COV, self.sc[self.candidates_count],
-                            self.L[0, self.candidates_count], ','.join(map(str, self.counts)),
-                            ','.join(map(str, self.sum_covs))]))
+        # with open(log_filename, 'a') as log:
+        #     # snps, effective length, sumcov, bare best likelyhood, total likelyhood, counts
+        #     log.write(pack([self.LINES, self.LENGTH, self.SUM_COV, self.sc[self.candidates_count],
+        #                     self.L[0, self.candidates_count], ','.join(map(str, self.counts)),
+        #                     ','.join(map(str, self.sum_covs))]))
 
 
 class ChromosomeSegmentation:  # chrom
@@ -679,55 +683,40 @@ class GenomeSegmentator:  # seg
         return segments
 
 
-if __name__ == '__main__':
-    key = sys.argv[1]
-    print(key)
+def test():
+    args = docopt(__doc__)
+    # TODO: Validation part(readable input file in correct format, existing directory)
 
+    # schema = Schema({
+    #     'FILE': [Use(open, error='FILE should be readable')],
+    #     'PATH': And(os.path.exists, error='PATH should exist'),
+    #     '--count': Or(None, And(Use(int), lambda n: 0 < n < 5),
+    #                   error='--count=N should be integer 0 < N < 5')})
+    # try:
+    #     args = schema.validate(args)
+    # except SchemaError as e:
+    #     exit(e)
+
+    if args["--version"]:
+        #TODO: Global version (here and in setup.py)
+        print("1.1")
+    input_file = args["<file>"]
+    output_dir = args["--output"]
+    verbose = args["--verbose"]
     mode = 'corrected'
-    states = [1.5, 6]
-    b_penalty = sys.argv[2]
-
-    if b_penalty == 'MIX_release':
-        states = [1.5, 6]
-    else:
-        states = [4 / 3, 1.5, 2.5, 6]
-
-    merged_vcfs_path = ploidy_path + 'merged_vcfs/' + key + ".tsv"
-
-    model = b_penalty
-    log_filename = parameters_path + 'segmentation_stats_' + model + '.tsv'
-
+    b_penalty = 'CAIC'
+    states = [4 / 3, 1.5, 2.5, 6]
     t = time.clock()
-
-    if not os.path.isdir(ploidy_path + model):
-        if not os.path.isdir(ploidy_path):
-            try:
-                os.mkdir(ploidy_path)
-            except:
-                pass
-        try:
-            os.mkdir(ploidy_path + model)
-        except:
-            pass
-    GS = GenomeSegmentator(merged_vcfs_path,
-                           ploidy_path + model + '/' + key + "_ploidy.tsv",
+    GS = GenomeSegmentator(input_file,
+                           output_dir,
                            mode,
                            states,
                            b_penalty,
-                           # prior={1.0: 528820834,
-                           #        4 / 3: 939595,
-                           #        1.5: 65802469,
-                           #        2.0: 836167610,
-                           #        2.5: 4644750,
-                           #        3.0: 134757109,
-                           #        4.0: 12509507,
-                           #        5.0: 3049258,
-                           #        6.0: 1665069
-                           #        },
                            )
     try:
         GS.estimate_ploidy()
     except Exception as e:
         print(sys.argv[1])
         raise e
-    print('Total time: {} s'.format(time.clock() - t))
+    if verbose:
+        print('Total time: {} s'.format(time.clock() - t))
