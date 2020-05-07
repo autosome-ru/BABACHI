@@ -307,7 +307,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.start_snp_index = 0
         self.end_snp_index = (self.total_snps_count - 1) - 1  # index from 0, and #boundaries = #snps - 1
         self.candidate_numbers = [i for i in range(self.total_snps_count - 1) if
-                                  self.allele_read_counts_array[i][0] != self.allele_read_counts_array[i + 1][0]]
+                                  self.snps_positions[i] != self.snps_positions[i + 1]]
         self.candidates_count = len(self.candidate_numbers)
         self.last_snp_number = self.total_snps_count - 1
 
