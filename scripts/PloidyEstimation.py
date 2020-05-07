@@ -52,6 +52,62 @@ class BADSegmentsContainer:
             setattr(self, arg, getattr(self, arg) + getattr(other, arg))
         return self
 
+    def get_BAD_segments(self, chromosome_segmentation):
+        current_position = None
+        if chromosome_segmentation.total_snps_count >= chromosome_segmentation.gs.snp_per_chr_tr:
+            for counter, boundary in enumerate(self.boundaries_positions, -1):
+                if current_position is None:
+                    if isinstance(boundary, tuple):
+                        current_position = boundary[1]
+                    else:
+                        current_position = 1
+                elif isinstance(boundary, tuple):
+                    yield BADSegment(
+                        chromosome_segmentation.chromosome,
+                        current_position,
+                        boundary[0] + 1,
+                        self.BAD_estimations[counter],
+                        self.likelihoods[counter],
+                        self.snps_counts[counter],
+                        self.covers[counter],
+                    )
+                    current_position = boundary[0] + 1
+                    yield BADSegment(
+                        chromosome_segmentation.chromosome,
+                        current_position,
+                        boundary[1],
+                        0,
+                        [0] * len(chromosome_segmentation.gs.BAD_list),
+                        0,
+                        0,
+                    )
+                    current_position = boundary[1]
+                else:
+                    yield BADSegment(
+                        chromosome_segmentation.chromosome,
+                        current_position,
+                        math.floor(boundary) + 1,
+                        self.BAD_estimations[counter],
+                        self.likelihoods[counter],
+                        self.snps_counts[counter],
+                        self.covers[counter],
+                    )
+                    current_position = math.floor(boundary) + 1
+
+
+class BADSegment:
+    def __init__(self, chr, start, end, BAD, likelihoods, snps_count, total_cover):
+        self.chr = chr
+        self.start = start
+        self.end = end
+        self.BAD = BAD
+        self.likelihoods = likelihoods
+        self.snps_count = snps_count
+        self.total_cover = total_cover
+
+    def __repr__(self):
+        return pack([self.chr, self.start, self.end, self.BAD, *self.likelihoods, self.snps_count, self.total_cover])
+
 
 class Segmentation(ABC):
     def __init__(self):
@@ -188,10 +244,12 @@ class AtomicRegionSegmentation(Segmentation):
         self.end_snp_index = end
         self.total_snps_count = end - start + 1
         self.snps_positions = sub_chromosome.snps_positions[
-                         sub_chromosome.candidate_numbers[start]:sub_chromosome.candidate_numbers[end - 1] + 2]
-        self.total_cover = sum(x[1] + x[2] for x in sub_chromosome.snps_array[
-                                                    sub_chromosome.candidate_numbers[start]:
-                                                    sub_chromosome.candidate_numbers[end - 1] + 2])
+                              sub_chromosome.candidate_numbers[start]:sub_chromosome.candidate_numbers[end - 1] + 2]
+        self.total_cover = sum(
+            ref_count + alt_count for ref_count, alt_count in sub_chromosome.allele_read_counts_array[
+                                                              sub_chromosome.candidate_numbers[start]:
+                                                              sub_chromosome.candidate_numbers[end - 1] + 2]
+        )
         self.candidate_numbers = sub_chromosome.candidate_numbers[start:end + 1]
         self.candidates_count = end - start
         if self.end_snp_index == sub_chromosome.candidates_count:
@@ -233,23 +291,23 @@ class AtomicRegionSegmentation(Segmentation):
 
 
 class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
-    def __init__(self, genome_segmentator, chromosome_segmentation, snps_array, snps_positions, part):
+    def __init__(self, genome_segmentator, chromosome_segmentation, allele_read_counts_array, snps_positions, part):
         super().__init__()
 
         self.gs = genome_segmentator
         self.chromosome_segmentation = chromosome_segmentation
         self.sub_chromosome = self
         self.index_in_chromosome = part
-        self.snps_array = snps_array
+        self.allele_read_counts_array = allele_read_counts_array
 
-        self.total_snps_count = len(self.snps_array)
-        self.total_cover = sum(x[1] + x[2] for x in self.snps_array)
+        self.total_snps_count = len(self.allele_read_counts_array)
+        self.total_cover = sum(ref_count + alt_count for ref_count, alt_count in self.allele_read_counts_array)
         self.snps_positions = snps_positions
         self.unique_snp_positions = len(set(self.snps_positions))
         self.start_snp_index = 0
         self.end_snp_index = (self.total_snps_count - 1) - 1  # index from 0, and #boundaries = #snps - 1
         self.candidate_numbers = [i for i in range(self.total_snps_count - 1) if
-                                  self.snps_array[i][0] != self.snps_array[i + 1][0]]
+                                  self.allele_read_counts_array[i][0] != self.allele_read_counts_array[i + 1][0]]
         self.candidates_count = len(self.candidate_numbers)
         self.last_snp_number = self.total_snps_count - 1
 
@@ -278,19 +336,19 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.end_snp_index = self.candidates_count - 1
 
     def construct_initial_likelihood_matrices(self):
-        current_snip = -1
+        current_snp_index = -1
 
         S = np.zeros((len(self.gs.BAD_list), self.total_snps_count), dtype=self.dtype)
         for j in range(0, self.total_snps_count):
 
-            pos, ref_c, alt_c = self.snps_array[self.start_snp_index + j]
-            current_snip += 1
+            ref_c, alt_c = self.allele_read_counts_array[self.start_snp_index + j]
+            current_snp_index += 1
             N = ref_c + alt_c
             X = min(ref_c, alt_c)
 
             for i in range(len(self.gs.BAD_list)):
                 assert (self.gs.BAD_list[i] > 0)
-                S[i, current_snip] = self.log_likelihood(N, X, self.gs.BAD_list[i])
+                S[i, current_snp_index] = self.log_likelihood(N, X, self.gs.BAD_list[i])
         self.P_initial = S
 
     def find_optimal_boundaries(self):
@@ -327,7 +385,8 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.segments_container.snps_counts = [cumulative_counts[i + 1] - cumulative_counts[i] for i in
                                                range(len(cumulative_counts) - 1)]
         self.segments_container.covers = [
-            sum(x[1] + x[2] for x in self.snps_array[cumulative_counts[i]:cumulative_counts[i + 1]]) for i in
+            sum(ref_count + alt_count for ref_count, alt_count in
+                self.allele_read_counts_array[cumulative_counts[i]:cumulative_counts[i + 1]]) for i in
             range(len(cumulative_counts) - 1)]
 
         for i in range(len(self.has_boundary)):
@@ -390,12 +449,11 @@ class ChromosomeSegmentation:  # chromosome
         self.chromosome = chromosome  # name
         self.length = length  # length, bp
 
-        (self.snps_array,  #
-         self.total_snps_count,
-         self.snps_positions) = self.unpack_snp_collection()  # unpack
+        (self.allele_read_counts_array, self.snps_positions) = self.unpack_snp_collection()  # unpack
+        self.total_snps_count = len(self.allele_read_counts_array)
         if self.total_snps_count == 0:
             return
-        self.total_read_coverage = sum(x[1] + x[2] for x in self.snps_array)
+        self.total_read_coverage = sum(ref_count + alt_count for ref_count, alt_count in self.allele_read_counts_array)
         self.critical_gap_factor = 1 - 10 ** (- 1 / np.sqrt(self.total_snps_count))
         self.effective_length = self.snps_positions[-1] - self.snps_positions[0]
 
@@ -403,9 +461,9 @@ class ChromosomeSegmentation:  # chromosome
 
     def unpack_snp_collection(self):
         positions, snps = zip(
-            *((pos, (pos, ref_count, alt_count)) for pos, ref_count, alt_count in self.gs.snps_collection[self.chromosome])
+            *((pos, (ref_count, alt_count)) for pos, ref_count, alt_count in self.gs.snps_collection[self.chromosome])
         )
-        return snps, len(snps), positions
+        return snps, positions
 
     def adjust_critical_gap(self):
         condition = True
@@ -462,7 +520,7 @@ class ChromosomeSegmentation:  # chromosome
                     covers=[0],
                 )
             else:
-                sub_chromosome = SubChromosomeSegmentation(self.gs, self, self.snps_array[st: ed],
+                sub_chromosome = SubChromosomeSegmentation(self.gs, self, self.allele_read_counts_array[st: ed],
                                                            self.snps_positions[st: ed], part)
                 sub_chromosome.estimate_sub_chr()
 
@@ -525,46 +583,6 @@ class GenomeSegmentator:  # gs
                 print('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
             self.chr_segmentations.append(chr_segmentation)
 
-    def append_BAD_segments(self, chr, total_snps_count_tr):
-        segments_to_write = []
-        cur = None
-        counter = 0
-        sc = chr.segments_container
-        if chr.total_snps_count >= total_snps_count_tr:
-            for boundary in sc.boundaries_positions:
-                if cur is None:
-                    if isinstance(boundary, tuple):
-                        cur = boundary[1]
-                    else:
-                        cur = 1
-                elif isinstance(boundary, tuple):
-                    segments_to_write.append(
-                        [chr.chromosome, cur, boundary[0] + 1, sc.BAD_estimations[counter]] + sc.likelihoods[
-                            counter] +
-                        [sc.snps_counts[counter], sc.covers[counter]])
-                    cur = boundary[0] + 1
-                    segments_to_write.append([chr.chromosome, cur, boundary[1], 0] + [0] * len(self.BAD_list) + [0, 0])
-                    cur = boundary[1]
-                    counter += 1
-                else:
-                    segments_to_write.append(
-                        [chr.chromosome, cur, math.floor(boundary) + 1, sc.BAD_estimations[counter]] +
-                        sc.likelihoods[counter] +
-                        [sc.snps_counts[counter], sc.covers[counter]])
-                    cur = math.floor(boundary) + 1
-                    counter += 1
-
-        return segments_to_write
-
-    def write_BAD_to_file(self, chr):
-        segments = self.append_BAD_segments(chr, self.snp_per_chr_tr)
-
-        filtered_segments = self.filter_segments(segments, self.min_segment_length)
-        for segment in filtered_segments:
-            if segment[3] == 0:  # BAD == 0
-                continue
-            self.out.write(pack(segment))
-
     # noinspection PyTypeChecker
     def estimate_BAD(self):
         self.out.write(
@@ -576,38 +594,15 @@ class GenomeSegmentator:  # gs
             self.write_BAD_to_file(chromosome)
             self.chr_segmentations[j] = None
 
-    def filter_segments(self, segments, snp_number_tr=2):
-        is_bad_left = False
-        is_bad_segment = False
-        for k in range(len(segments)):
-            if segments[k][4 + len(self.BAD_list)] <= snp_number_tr and segments[k][3] != 0:  # если k сегмент "плохой"
-                if is_bad_segment:  # если k-1 тоже "плохой"
-                    is_bad_left = True
-                    for j in range(3, 4 + len(self.BAD_list)):
-                        segments[k - 1][j] = 0
-                else:
-                    is_bad_left = False
-                is_bad_segment = True  # текущий сегмент плохой, следующий шаг цикла
-            else:  # k сегмент хороший
-                if is_bad_segment and not is_bad_left and k > 1:  # а k-1 плохой и k-2 хороший
-                    # if segments[k][3] < segments[k - 1][3] and segments[k - 2][3] < segments[k - 1][3]:
-                    #     # если BAD k-1 сегмента больше BAD k-2 и k сегментов
-                    #     if segments[k][3] > segments[k - 2][3]:  # если BAD k сегмента больше BAD k-2
-                    #         segments[k - 1][3] = segments[k][3]  # присвоить BAD k сегмента
-                    #     else:  # если BAD k-2 сегмента больше BAD k
-                    #         segments[k - 1][3] = segments[k - 2][3]  # присвоить BAD k-2 сегмента
-                    #
-                    #     for j in range(4, 4 + len(self.i_list)):
-                    #         segments[k - 1][j] = 0
-                    is_bad_left = True
-                if is_bad_left and is_bad_segment:
-                    for j in range(3, 4 + len(self.BAD_list)):
-                        segments[k - 1][j] = 0
-                    is_bad_left = True
+    def write_BAD_to_file(self, chromosome_segmentation):
+        segments_generator = chromosome_segmentation.segments_container.get_BAD_segments(chromosome_segmentation)
+        for segment in self.filter_segments(segments_generator):
+            self.out.write(str(segment))
 
-                is_bad_segment = False  # текущий сегмент хороший, следующий шаг цикла
-
-        return segments
+    def filter_segments(self, segments):
+        for segment in segments:
+            if segment.BAD != 0 and segment.snps_count > self.min_segment_length:
+                yield segment
 
 
 def parse_input_file(opened_file):
