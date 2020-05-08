@@ -8,7 +8,7 @@ setup(
     long_description=open(join(dirname(__file__), 'README.txt')).read(),
     entry_points={
         'console_scripts': [
-            'segmentation = scripts.PloidyEstimation:segmentation_start',
+            'segmentation = scripts.BADEstimation:segmentation_start',
         ],
     },
     install_requires=[
