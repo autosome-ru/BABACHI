@@ -189,7 +189,6 @@ class Segmentation(ABC):
         self.P = P
 
     def modify_P(self):
-        # print('Constructing p-matrix')
         self.C = np.cumsum(self.S, axis=1)
         for j in range(self.candidates_count + 1):
             if j == 0:
@@ -200,7 +199,6 @@ class Segmentation(ABC):
                 self.P[:, j, k] = self.C[:, k] - subtract
 
     def modify_L(self):
-        # print('Constructing L')
         Q = np.sort(self.P, axis=0)
         self.L[:, :] = Q[-1, :, :] + np.log1p(np.sum(np.exp(Q[:-2, :, :] - Q[-1, :, :]), axis=0))
 
@@ -259,10 +257,7 @@ class AtomicRegionSegmentation(Segmentation):
 
         self.initialize_boundaries_arrays()
 
-    # print(self.start, self.end, self.candidates_count, len(self.positions))
-
     def find_optimal_boundaries(self):
-        # print('Constructing boundaries')
         for i in range(self.candidates_count + 1):
             self.score[i] = self.L[0, i]
 
@@ -413,33 +408,36 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
                                                      self.gs.atomic_region_length,
                                                      self.gs.overlap)
         boundary_set = set()
-        # print("{} segments: {}".format(len(tuples), tuples))
         counter = 0
         for first, last in tuples:
             counter += 1
             if self.gs.verbose:
-                print(
+                print_or_write(
                     'Making {} out of {} segments from {} to {} for {} (part {} of {}).'.format(
                         counter, len(tuples), first,
                         last, self.chromosome_segmentation.chromosome,
                         self.index_in_chromosome,
-                        len(self.chromosome_segmentation.get_sub_chromosomes_slices())))
+                        len(self.chromosome_segmentation.get_sub_chromosomes_slices())),
+                    self.gs.log_file_buffer)
             atomic_region_segmentation = AtomicRegionSegmentation(self, first, last)
             atomic_region_segmentation.estimate()
             boundary_set |= set(atomic_region_segmentation.boundaries_indexes)
         self.candidate_numbers = sorted(list(boundary_set))
         self.candidates_count = len(self.candidate_numbers)
         if self.gs.verbose:
-            print('SNPs in part: {}'.format(len(self.snps_positions)))
-        # print('{} candidates'.format(self.candidates_count))
+            print_or_write('SNPs in part: {}'.format(len(self.snps_positions)),
+                           self.gs.log_file_buffer)
 
         self.initialize_boundaries_arrays()
 
         self.estimate()
         self.estimate_BAD()
         if self.gs.verbose:
-            print(
-                '\n'.join(map(str, zip(self.segments_container.BAD_estimations, self.segments_container.snps_counts))))
+            print_or_write('\n'.join(map(str,
+                                         zip(self.segments_container.BAD_estimations,
+                                             self.segments_container.snps_counts))),
+                           self.gs.log_file_buffer
+                           )
 
 
 class ChromosomeSegmentation:  # chromosome
@@ -507,7 +505,10 @@ class ChromosomeSegmentation:  # chromosome
         else:
             self.segments_container.boundaries_positions.append((1, self.snps_positions[0]))
         if self.gs.verbose:
-            print('Distance splits {}'.format(self.get_sub_chromosomes_slices()))
+            print_or_write(
+                'Distance splits {}'.format(self.get_sub_chromosomes_slices()),
+                self.gs.log_file_buffer
+            )
 
         for part, (st, ed) in enumerate(self.get_sub_chromosomes_slices(), 1):
             # check
@@ -534,25 +535,29 @@ class ChromosomeSegmentation:  # chromosome
         else:
             self.segments_container.boundaries_positions.append((self.snps_positions[-1] + 1, self.length))
         if self.gs.verbose:
-            print('\nTotal SNPs: {},'
-                  '\nEstimated BADs: {},'
-                  '\nSNP counts {}'
-                  '\nCritical gap {:.0f}'
-                  '\nBoundaries distances: {}'
-                  .format(len(self.snps_positions), self.segments_container.BAD_estimations,
-                          self.segments_container.snps_counts,
-                          self.critical_gap_factor * self.effective_length,
-                          list(map(lambda x: (x, 1) if isinstance(x, (int, float)) else (x[0], x[1] - x[0]),
-                                   self.segments_container.boundaries_positions))))
-            print('{} time: {} s\n'.format(self.chromosome, time.clock() - start_t))
+            print_or_write('\nTotal SNPs: {},'
+                           '\nEstimated BADs: {},'
+                           '\nSNP counts {}'
+                           '\nCritical gap {:.0f}'
+                           '\nBoundaries distances: {}'
+                           .format(len(self.snps_positions), self.segments_container.BAD_estimations,
+                                   self.segments_container.snps_counts,
+                                   self.critical_gap_factor * self.effective_length,
+                                   list(map(lambda x: (x, 1) if isinstance(x, (int, float)) else (x[0], x[1] - x[0]),
+                                            self.segments_container.boundaries_positions))),
+                           self.gs.log_file_buffer
+                           )
+            print_or_write(
+                '{} time: {} s\n'.format(self.chromosome, time.clock() - start_t),
+                self.gs.log_file_buffer)
 
 
 class GenomeSegmentator:  # gs
     def __init__(self, snps_collection, out, segmentation_mode='corrected', extra_states=None, b_penalty='CAIC',
-                 prior=None, verbose=False, additional_file_path=False, log_file_path=None):
+                 prior=None, verbose=False, additional_file_path=False, log_file_buffer=None):
 
         self.additional_file = additional_file_path  # path to file with SNPs intersection
-        self.log_file_path = log_file_path
+        self.log_file_buffer = log_file_buffer
         self.verbose = verbose
         self.mode = segmentation_mode  # 'corrected' or 'binomial'
         self.b_penalty = b_penalty  # boundary penalty mode ('CAIC', ')
@@ -580,7 +585,9 @@ class GenomeSegmentator:  # gs
         for chromosome in self.chromosomes:
             chr_segmentation = ChromosomeSegmentation(self, chromosome, ChromPos.chrs[chromosome])
             if self.verbose:
-                print('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
+                print_or_write('{} total SNP count: {}'
+                               .format(chromosome, chr_segmentation.total_snps_count),
+                               self.log_file_buffer)
             self.chr_segmentations.append(chr_segmentation)
 
     # noinspection PyTypeChecker
@@ -625,6 +632,13 @@ def parse_input_file(opened_file):
     return snps_collection, opened_file.name
 
 
+def print_or_write(message, log_file_buffer):
+    if log_file_buffer is None:
+        print(message)
+    else:
+        log_file_buffer.write(message + '\n')
+
+
 def segmentation_start():
     # TODO: Global version (here and in setup.py)
     args = docopt(__doc__, version='BAD segmentation v0.1')
@@ -658,6 +672,7 @@ def segmentation_start():
     log_file_path = args['--log']
     if log_file_path and os.path.isdir(log_file_path):
         log_file_path += file_name + '.log'
+    log_file_buffer = open(log_file_path, "w")
 
     output_file_path = args['--output']
     if os.path.isdir(output_file_path):
@@ -675,11 +690,10 @@ def segmentation_start():
                            b_penalty=b_penalty,
                            verbose=verbose,
                            additional_file_path=args['--add'],
-                           log_file_path=log_file_path
+                           log_file_buffer=log_file_buffer
                            )
     try:
         GS.estimate_BAD()
     except Exception as e:
         raise e
-    if verbose:
-        print('Total time: {} s'.format(time.clock() - t))
+    print_or_write('Total time: {} s'.format(time.clock() - t), log_file_buffer)
