@@ -154,13 +154,11 @@ class Segmentation(ABC):
         p = 1.0 / (1.0 + i)
         log_norm = np.log1p(self.get_norm(p, N, self.sub_chromosome.gs.allele_reads_tr) +
                             self.get_norm(1 - p, N, self.sub_chromosome.gs.allele_reads_tr))
-        if (
-                self.sub_chromosome.gs.mode == 'corrected' and N == 2 * X) or self.sub_chromosome.gs.mode == 'binomial':
-            return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(
-                self.sub_chromosome.gs.prior[i]) - log_norm
+        if (self.sub_chromosome.gs.mode == 'corrected' and N == 2 * X) or self.sub_chromosome.gs.mode == 'binomial':
+            return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[i]) - log_norm
         elif self.sub_chromosome.gs.mode == 'corrected':
-            return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[i]) \
-                   + np.log1p(i ** (2 * X - N)) - log_norm
+            return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[i]) - log_norm \
+                   + np.log1p(i ** (2 * X - N))
 
     def get_P(self, first, last):
         if last - first == 1:
