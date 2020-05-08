@@ -477,7 +477,6 @@ class ChromosomeSegmentation:  # chromosome
 
             condition = length_difference != 0
 
-    #  TODO: (N+1)/N paradox
     def get_sub_chromosomes_slices(self):
         sub_chromosome_slice_indexes = []
         current_tuple_start = 0
@@ -647,6 +646,7 @@ def print_or_write(message, log_file_buffer):
 
 def segmentation_start():
     # TODO: Global version (here and in setup.py)
+    # TODO: Annotate SNPs
     args = docopt(__doc__, version='BAD segmentation v0.1')
     schema = Schema({
         '<file>': And(
