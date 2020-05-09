@@ -16,6 +16,10 @@ The output is a .bed file with BAD annotations.
 ## Installation
 
 //to be uploaded on PyPI
+temporary:
+``` 
+pip3 install git+ssh://git@github.com/autosome-ru/BAD_segmentation
+```
 
 ## Requirements
 ```
