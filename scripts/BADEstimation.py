@@ -22,9 +22,10 @@ import numpy as np
 import os.path
 from schema import Schema, And, Use, SchemaError, Const, Optional, Or
 import time
-from scripts.helpers import ChromPos, pack
+from scripts.helpers import ChromosomePosition, pack
 from abc import ABC, abstractmethod
 from docopt import docopt
+from scripts import __version__
 
 
 class BADSegmentsContainer:
@@ -572,12 +573,12 @@ class GenomeSegmentator:  # gs
         self.atomic_region_length = 600  # length of an atomic region in snps
         self.overlap = 300  # length of regions overlap in snps
         self.min_segment_length = 2  # minimal segment length in snps
-        self.chromosomes = sorted(list(ChromPos.chrs.keys()))  # {'chr1': length_in_bp, ...}
+        self.chromosomes = sorted(list(ChromosomePosition.chromosomes.keys()))  # {'chr1': length_in_bp, ...}
 
         self.chr_segmentations = []  # list of ChromosomeSegmentation instances
 
         for chromosome in self.chromosomes:
-            chr_segmentation = ChromosomeSegmentation(self, chromosome, ChromPos.chrs[chromosome])
+            chr_segmentation = ChromosomeSegmentation(self, chromosome, ChromosomePosition.chromosomes[chromosome])
             if self.verbose:
                 print_or_write('{} total SNP count: {}'
                                .format(chromosome, chr_segmentation.total_snps_count),
@@ -610,13 +611,13 @@ class GenomeSegmentator:  # gs
 
 
 def parse_input_file(opened_file):
-    snps_collection = {chromosome: [] for chromosome in ChromPos.chrs}
+    snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
     for line_number, line in enumerate(opened_file, 1):
         if line[0] == '#':
             continue
         else:
             parsed_line = line.strip().split('\t')
-            if parsed_line[0] not in ChromPos.chrs:
+            if parsed_line[0] not in ChromosomePosition.chromosomes:
                 print('Invalid chromosome name: {} in line #{}'.format(parsed_line[0], line_number))
                 return False
             try:
@@ -637,9 +638,8 @@ def print_or_write(message, log_file_buffer):
 
 
 def segmentation_start():
-    # TODO: Global version (here and in setup.py)
     # TODO: Annotate SNPs
-    args = docopt(__doc__, version='BAD segmentation v0.1')
+    args = docopt(__doc__, version='BAD segmentation v{}'.format(__version__))
     schema = Schema({
         '<file>': And(
             Const(os.path.exists, error='Input file should exist'),
