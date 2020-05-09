@@ -11,8 +11,6 @@ Options:
     -h, --help                  Show help.
     -V, --version               Show version.
     -q, --quiet                 No log messages during work time.
-    -a, --add                   Create additional file with SNPs intersection.
-    --log <path>                Path to a verbose appending log.
     -O <path>, --output <path>  Output directory or file path. [default: ./]
     --test                      Run segmentation on test file
 """
@@ -20,7 +18,7 @@ Options:
 import math
 import numpy as np
 import os.path
-from schema import Schema, And, Use, SchemaError, Const, Optional, Or
+from schema import Schema, And, Use, SchemaError, Const
 import time
 from scripts.helpers import ChromosomePosition, pack
 from abc import ABC, abstractmethod
@@ -413,21 +411,19 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         for first, last in atomic_regions_limits:
             counter += 1
             if self.gs.verbose:
-                print_or_write(
+                print(
                     'Making {} out of {} atomic region{} from SNP {} to {} for {} (subchromosome {} of {}).'.format(
                         counter, len(atomic_regions_limits), 's' * bool((len(atomic_regions_limits) - 1)),
                         first, last, self.chromosome_segmentation.chromosome,
                         self.index_in_chromosome,
-                        len(self.chromosome_segmentation.get_sub_chromosomes_slices())),
-                    self.gs.log_file_buffer)
+                        len(self.chromosome_segmentation.get_sub_chromosomes_slices())))
             atomic_region_segmentation = AtomicRegionSegmentation(self, first, last)
             atomic_region_segmentation.estimate()
             boundary_set |= set(atomic_region_segmentation.boundaries_indexes)
         self.candidate_numbers = sorted(list(boundary_set))
         self.candidates_count = len(self.candidate_numbers)
         if self.gs.verbose:
-            print_or_write('Unique SNPs positions in subchromosome: {}'.format(self.unique_snp_positions),
-                           self.gs.log_file_buffer)
+            print('Unique SNPs positions in subchromosome: {}'.format(self.unique_snp_positions))
 
         self.initialize_boundaries_arrays()
 
@@ -487,10 +483,7 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self):
-        print_or_write(
-            'Processing SNPs in {}'.format(self.chromosome),
-            self.gs.log_file_buffer
-        )
+        print('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
             return
 
@@ -503,11 +496,9 @@ class ChromosomeSegmentation:  # chromosome
         else:
             self.segments_container.boundaries_positions.append((1, self.snps_positions[0]))
         if self.gs.verbose:
-            print_or_write(
+            print(
                 'Stage 1 subchromosomes (start SNP index, end SNP index): {}'.format(
-                    self.get_sub_chromosomes_slices()),
-                self.gs.log_file_buffer
-            )
+                    self.get_sub_chromosomes_slices()))
 
         for part, (st, ed) in enumerate(self.get_sub_chromosomes_slices(), 1):
             # check
@@ -534,25 +525,21 @@ class ChromosomeSegmentation:  # chromosome
         else:
             self.segments_container.boundaries_positions.append((self.snps_positions[-1] + 1, self.length))
         if self.gs.verbose:
-            print_or_write(
+            print(
                 '\nEstimated BADs: {}\nSNP counts: {}\nCritical gap: {:.0f}bp'
                 '\nBoundaries positions (location: deletion length): {}'.format(
                     '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
                     self.segments_container.snps_counts, self.critical_gap_factor * self.effective_length,
                     '[' + ', '.join(map(lambda x: '({:.0f}bp: 0bp)'.format(x) if isinstance(x, (int, float)) else (
                         '({:.0f}bp: {:.0f}bp)'.format(x[0], x[1] - x[0])),
-                                        self.segments_container.boundaries_positions)) + ']'), self.gs.log_file_buffer)
-            print_or_write(
-                '{} time: {} s\n\n'.format(self.chromosome, time.clock() - start_t),
-                self.gs.log_file_buffer)
+                                        self.segments_container.boundaries_positions)) + ']'))
+            print('{} time: {} s\n\n'.format(self.chromosome, time.clock() - start_t))
 
 
 class GenomeSegmentator:  # gs
     def __init__(self, snps_collection, out, segmentation_mode='corrected', extra_states=None, b_penalty='CAIC',
-                 prior=None, verbose=False, additional_file_path=False, log_file_buffer=None):
+                 prior=None, verbose=False):
 
-        self.additional_file = additional_file_path  # path to file with SNPs intersection
-        self.log_file_buffer = log_file_buffer
         self.verbose = verbose
         self.mode = segmentation_mode  # 'corrected' or 'binomial'
         self.b_penalty = b_penalty  # boundary penalty mode ('CAIC', ')
@@ -580,13 +567,11 @@ class GenomeSegmentator:  # gs
         for chromosome in self.chromosomes:
             chr_segmentation = ChromosomeSegmentation(self, chromosome, ChromosomePosition.chromosomes[chromosome])
             if self.verbose:
-                print_or_write('{} total SNP count: {}'
-                               .format(chromosome, chr_segmentation.total_snps_count),
-                               self.log_file_buffer)
+                print('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
             self.chr_segmentations.append(chr_segmentation)
         else:
             if self.verbose:
-                print_or_write('\n', self.log_file_buffer)
+                print('\n')
 
     # noinspection PyTypeChecker
     def estimate_BAD(self):
@@ -630,15 +615,7 @@ def parse_input_file(opened_file):
     return snps_collection, opened_file.name
 
 
-def print_or_write(message, log_file_buffer):
-    if log_file_buffer is None:
-        print(message)
-    else:
-        log_file_buffer.write(message + '\n')
-
-
 def segmentation_start():
-    # TODO: Annotate SNPs
     args = docopt(__doc__, version='BAD segmentation v{}'.format(__version__))
     schema = Schema({
         '<file>': And(
@@ -650,12 +627,6 @@ def segmentation_start():
             Const(os.path.exists, error='Output path should exist'),
             Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
         ),
-        Optional('--log'): Or(
-            None, And(
-                Const(os.path.exists, error='Log path should exist'),
-                Const(lambda x: os.access(x, os.W_OK), error='No write permissions for log file')
-            )
-        ),
         str: bool
     })
     try:
@@ -666,14 +637,6 @@ def segmentation_start():
 
     snps_collection, full_name = args['<file>']
     file_name = os.path.splitext(os.path.basename(full_name))[0]
-
-    log_file_path = args['--log']
-    if log_file_path is not None:
-        if log_file_path and os.path.isdir(log_file_path):
-            log_file_path += file_name + '.log'
-        log_file_buffer = open(log_file_path, "w")
-    else:
-        log_file_buffer = None
 
     output_file_path = args['--output']
     if os.path.isdir(output_file_path):
@@ -690,11 +653,9 @@ def segmentation_start():
                            extra_states=states,
                            b_penalty=b_penalty,
                            verbose=verbose,
-                           additional_file_path=args['--add'],
-                           log_file_buffer=log_file_buffer
                            )
     try:
         GS.estimate_BAD()
     except Exception as e:
         raise e
-    print_or_write('Total time: {} s'.format(time.clock() - t), log_file_buffer)
+    print('Total time: {} s'.format(time.clock() - t))
