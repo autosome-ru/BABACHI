@@ -13,6 +13,7 @@ setup(
             'segmentation = package.BADEstimation:segmentation_start',
         ],
     },
+    author="Sergey Abramov, Alexandr Boytsov",
     install_requires=[
         'docopt>=0.6.2',
         'numpy>=1.18.0',
