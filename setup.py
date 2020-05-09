@@ -7,7 +7,7 @@ setup(
     version=__version__,
     packages=find_packages(),
     package_data={'package': ['tests/*.tsv']},
-    long_description=open(join(dirname(__file__), 'README.txt')).read(),
+    long_description=open(join(dirname(__file__), 'README.md')).read(),
     entry_points={
         'console_scripts': [
             'segmentation = package.BADEstimation:segmentation_start',
