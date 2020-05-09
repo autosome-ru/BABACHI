@@ -10,7 +10,7 @@ Arguments:
 Options:
     -h, --help                  Show help.
     -V, --version               Show version.
-    -v, --verbose               Print additional messages during work time.
+    -q, --quiet                 No log messages during work time.
     -a, --add                   Create additional file with SNPs intersection.
     --log <path>                Path to a verbose appending log.
     -O <path>, --output <path>  Output directory or file path. [default: ./]
@@ -533,20 +533,14 @@ class ChromosomeSegmentation:  # chromosome
         else:
             self.segments_container.boundaries_positions.append((self.snps_positions[-1] + 1, self.length))
         if self.gs.verbose:
-            print_or_write('\nEstimated BADs: {}'
-                           '\nSNP counts: {}'
-                           '\nCritical gap: {:.0f}bp'
-                           '\nBoundaries positions (location: deletion length): {}'
-                           .format(
-                '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
-                self.segments_container.snps_counts,
-                self.critical_gap_factor * self.effective_length,
-                '[' + ', '.join(map(
-                    lambda x: '({:.0f}bp: 0bp)'.format(x) if isinstance(x, (int, float)) else (
+            print_or_write(
+                '\nEstimated BADs: {}\nSNP counts: {}\nCritical gap: {:.0f}bp'
+                '\nBoundaries positions (location: deletion length): {}'.format(
+                    '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
+                    self.segments_container.snps_counts, self.critical_gap_factor * self.effective_length,
+                    '[' + ', '.join(map(lambda x: '({:.0f}bp: 0bp)'.format(x) if isinstance(x, (int, float)) else (
                         '({:.0f}bp: {:.0f}bp)'.format(x[0], x[1] - x[0])),
-                    self.segments_container.boundaries_positions)) + ']'),
-                           self.gs.log_file_buffer
-                           )
+                                        self.segments_container.boundaries_positions)) + ']'), self.gs.log_file_buffer)
             print_or_write(
                 '{} time: {} s\n\n'.format(self.chromosome, time.clock() - start_t),
                 self.gs.log_file_buffer)
@@ -685,7 +679,7 @@ def segmentation_start():
     if os.path.isdir(output_file_path):
         output_file_path += file_name + '.bed'
 
-    verbose = args['--verbose']
+    verbose = not args['--quiet']
     mode = 'corrected'
     b_penalty = 'CAIC'
     states = [4 / 3, 1.5, 2.5, 6]

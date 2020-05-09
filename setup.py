@@ -16,5 +16,7 @@ setup(
         'numpy>=1.18.0',
         'schema>=0.7.2',
         'contextlib2>=0.5.5'
-    ]
+    ],
+    python_requires='>=3.6',
+    url="https://github.com/wish1/BAD_segmentation",
 )
