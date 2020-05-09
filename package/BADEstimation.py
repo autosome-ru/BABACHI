@@ -1,16 +1,19 @@
 """
 
 Usage:
-    segmentation <file> [options]
-    segmentation --test
+    segmentation <file> [-O <path> |--output <path>] [-q | --quiet]
+    segmentation (--test) [-O <path> |--output <path>] [-q | --quiet]
+    segmentation -h | --help
+    segmentation -V | --version
 
 Arguments:
-    <file>     Path to input file in vcf format (chr pos ID ref_base alt_base).
+    <file>     Path to input file in tsv format with columns:
+    chr pos ID ref_base alt_base ref_read_count alt_read_count.
 
 Options:
     -h, --help                  Show help.
     -V, --version               Show version.
-    -q, --quiet                 No log messages during work time.
+    -q, --quiet                 Less log messages during work time.
     -O <path>, --output <path>  Output directory or file path. [default: ./]
     --test                      Run segmentation on test file
 """
@@ -617,6 +620,9 @@ def parse_input_file(opened_file):
 
 def segmentation_start():
     args = docopt(__doc__, version='BAD segmentation v{}'.format(__version__))
+    if args['--test']:
+        args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests/test.tsv')
+
     schema = Schema({
         '<file>': And(
             Const(os.path.exists, error='Input file should exist'),
