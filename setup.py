@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-from scripts import __version__
+from package import __version__
 from os.path import join, dirname
 
 setup(
@@ -9,7 +9,7 @@ setup(
     long_description=open(join(dirname(__file__), 'README.txt')).read(),
     entry_points={
         'console_scripts': [
-            'segmentation = scripts.BADEstimation:segmentation_start',
+            'segmentation = package.BADEstimation:segmentation_start',
         ],
     },
     install_requires=[

@@ -20,10 +20,10 @@ import numpy as np
 import os.path
 from schema import Schema, And, Use, SchemaError, Const
 import time
-from scripts.helpers import ChromosomePosition, pack
+from package.helpers import ChromosomePosition, pack
 from abc import ABC, abstractmethod
 from docopt import docopt
-from scripts import __version__
+from package import __version__
 
 
 class BADSegmentsContainer:
