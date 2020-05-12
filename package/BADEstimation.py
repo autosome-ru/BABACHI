@@ -1,8 +1,8 @@
 """
 
 Usage:
-    segmentation <file> [-O <path> |--output <path>] [-q | --quiet]
-    segmentation (--test) [-O <path> |--output <path>] [-q | --quiet]
+    segmentation <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>]
+    segmentation (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>]
     segmentation -h | --help
     segmentation -V | --version
 
@@ -15,6 +15,7 @@ Options:
     -V, --version               Show version.
     -q, --quiet                 Less log messages during work time.
     -O <path>, --output <path>  Output directory or file path. [default: ./]
+    --allele_reads_tr <int>     Allele reads threshold [default: 5]
     --test                      Run segmentation on test file
 """
 
@@ -541,11 +542,12 @@ class ChromosomeSegmentation:  # chromosome
 
 class GenomeSegmentator:  # gs
     def __init__(self, snps_collection, out, segmentation_mode='corrected', extra_states=None, b_penalty='CAIC',
-                 prior=None, verbose=False):
+                 prior=None, verbose=False, allele_reads_tr=0):
 
         self.verbose = verbose
         self.mode = segmentation_mode  # 'corrected' or 'binomial'
         self.b_penalty = b_penalty  # boundary penalty mode ('CAIC', ')
+        self.allele_reads_tr = allele_reads_tr  # "minimal read count on each allele" snp filter
         if extra_states is None:
             self.BAD_list = [1, 2, 3, 4, 5]
         else:
@@ -559,7 +561,6 @@ class GenomeSegmentator:  # gs
         self.out = open(out, 'w')  # output file in .bed format
 
         self.snp_per_chr_tr = 100  # minimal number of snps in chromosome to start segmentation
-        self.allele_reads_tr = 5  # "minimal read count on each allele" snp filter
         self.atomic_region_length = 600  # length of an atomic region in snps
         self.overlap = 300  # length of regions overlap in snps
         self.min_segment_length = 2  # minimal segment length in snps
@@ -598,7 +599,7 @@ class GenomeSegmentator:  # gs
                 yield segment
 
 
-def parse_input_file(opened_file):
+def parse_input_file(opened_file, allele_reads_tr=0):
     snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
     for line_number, line in enumerate(opened_file, 1):
         if line[0] == '#':
@@ -614,7 +615,11 @@ def parse_input_file(opened_file):
             except ValueError:
                 print('Position, Reference allele read counts, Alternative allele read counts must be'
                       ' a non-negative integer in line #{}'.format(line_number))
-        snps_collection[parsed_line[0]].append((int(parsed_line[1]), int(parsed_line[5]), int(parsed_line[6])))
+        ref_read_count = int(parsed_line[5])
+        alt_read_count = int(parsed_line[6])
+        if ref_read_count < allele_reads_tr or alt_read_count < allele_reads_tr:
+            continue
+        snps_collection[parsed_line[0]].append((int(parsed_line[1]), ref_read_count, alt_read_count))
     return snps_collection, opened_file.name
 
 
@@ -627,12 +632,13 @@ def segmentation_start():
         '<file>': And(
             Const(os.path.exists, error='Input file should exist'),
             Use(open, error='Input file should be readable'),
-            Use(parse_input_file, error='Wrong input file format')
+            Use(lambda x: parse_input_file(x, int(args['--allele_reads_tr'])), error='Wrong input file format')
         ),
         '--output': And(
             Const(os.path.exists, error='Output path should exist'),
             Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
         ),
+        '--allele_reads_tr': Use(int, error='Allele reads threshold must be integer'),
         str: bool
     })
     try:
@@ -659,6 +665,7 @@ def segmentation_start():
                            extra_states=states,
                            b_penalty=b_penalty,
                            verbose=verbose,
+                           allele_reads_tr=args['--allele_reads_tr']
                            )
     try:
         GS.estimate_BAD()
