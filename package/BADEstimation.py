@@ -15,7 +15,8 @@ Options:
     -V, --version               Show version.
     -q, --quiet                 Less log messages during work time.
     -O <path>, --output <path>  Output directory or file path. [default: ./]
-    --allele_reads_tr <int>     Allele reads threshold [default: 5]
+    --allele_reads_tr <int>     Allele reads threshold. Input SNPs will be filtered by ref_read_count >= x and
+                                alt_read_count >= x. [default: 5]
     --test                      Run segmentation on test file
 """
 
@@ -444,18 +445,20 @@ class ChromosomeSegmentation:  # chromosome
 
         (self.allele_read_counts_array, self.snps_positions) = self.unpack_snp_collection()  # unpack
         self.total_snps_count = len(self.allele_read_counts_array)
+        self.segments_container = BADSegmentsContainer()
         if self.total_snps_count == 0:
             return
         self.total_read_coverage = sum(ref_count + alt_count for ref_count, alt_count in self.allele_read_counts_array)
         self.critical_gap_factor = 1 - 10 ** (- 1 / np.sqrt(self.total_snps_count))
         self.effective_length = self.snps_positions[-1] - self.snps_positions[0]
 
-        self.segments_container = BADSegmentsContainer()
-
     def unpack_snp_collection(self):
-        positions, snps = zip(
-            *((pos, (ref_count, alt_count)) for pos, ref_count, alt_count in self.gs.snps_collection[self.chromosome])
-        )
+        try:
+            positions, snps = zip(
+                *((pos, (ref_count, alt_count)) for pos, ref_count, alt_count in self.gs.snps_collection[self.chromosome])
+            )
+        except ValueError:
+            positions, snps = [], []
         return snps, positions
 
     def adjust_critical_gap(self):
