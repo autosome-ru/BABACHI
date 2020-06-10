@@ -20,6 +20,8 @@ Options:
     --allele_reads_tr <int>     Allele reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                 alt_read_count >= x. [default: 5]
     --force-sort                Do chromosomes need to be sorted
+    --visualize                 Perform visualization of SNP-wise AD and BAD for each chromosome.
+                                Will create a directory in output path for the .svg visualizations.
     --test                      Run segmentation on test file
 """
 
