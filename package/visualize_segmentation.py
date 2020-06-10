@@ -1,9 +1,8 @@
 import os
-import numpy as np
 import pandas as pd
 import matplotlib.colors as m_colors
 import matplotlib.colorbar as m_colorbar
-from matplotlib import pyplot as plt, ticker
+from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
 from package.helpers import ChromosomePosition
@@ -20,25 +19,6 @@ plt.rcParams["legend.framealpha"] = 1
 plt.rcParams['axes.xmargin'] = 0
 plt.rcParams['axes.ymargin'] = 0
 plt.rcParams["legend.framealpha"] = 1
-
-# snps = pd.read_table(snps_name, header=None)
-# snps.columns = ['chr', 'pos', 'ID', 'ref', 'alt', 'ref_c', 'alt_c']
-# snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
-# snps['cov'] = snps['ref_c'] + snps['alt_c']
-
-
-# def init_visualization(snps, BAD_file):
-#     BAD_table = pd.read_table(BAD_file)
-#     file_name = os.path.splitext(os.path.basename(BAD_file))[0]
-#     out_path = os.path.dirname(BAD_file)
-#
-#     snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
-#     snps['cov'] = snps['ref_c'] + snps['alt_c']
-#
-#     for chromosome in snps['chr'].unique():
-#         visualize_chromosome(os.path.join(out_path, '{}_{}.svg'.format(file_name, chromosome)),
-#                              chromosome, snps[snps['chr'] == chromosome],
-#                              BAD_table[BAD_table['#chr'] == chromosome])
 
 
 def init_from_snps_collection(snps_collection, BAD_file):
