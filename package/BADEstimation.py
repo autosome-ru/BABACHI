@@ -674,19 +674,19 @@ def segmentation_start():
     b_penalty = 'CAIC'
     states = [4 / 3, 1.5, 2.5, 6]
     t = time.clock()
-    # GS = GenomeSegmentator(snps_collection=snps_collection,
-    #                        chromosomes_order=chromosomes_order,
-    #                        out=output_file_path,
-    #                        segmentation_mode=mode,
-    #                        extra_states=states,
-    #                        b_penalty=b_penalty,
-    #                        verbose=verbose,
-    #                        allele_reads_tr=args['--allele_reads_tr']
-    #                        )
-    # try:
-    #     GS.estimate_BAD()
-    # except Exception as e:
-    #     raise e
+    GS = GenomeSegmentator(snps_collection=snps_collection,
+                           chromosomes_order=chromosomes_order,
+                           out=output_file_path,
+                           segmentation_mode=mode,
+                           extra_states=states,
+                           b_penalty=b_penalty,
+                           verbose=verbose,
+                           allele_reads_tr=args['--allele_reads_tr']
+                           )
+    try:
+        GS.estimate_BAD()
+    except Exception as e:
+        raise e
     print('Total time: {} s'.format(time.clock() - t))
 
     if args['--visualize']:

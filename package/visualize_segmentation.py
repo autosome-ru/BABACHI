@@ -61,7 +61,7 @@ def init_from_snps_collection(snps_collection, BAD_file):
 
 def visualize_chromosome(out_path, chromosome, snps, BAD_segments):
     fig, ax = plt.subplots()
-    fig.tight_layout(h_pad=3, w_pad=3)
+    fig.tight_layout(rect=[0, 0.01, 0.95, 1])
     plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
 
     BAD_color = '#0072B2CC'
@@ -152,8 +152,8 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments):
     ax.plot([0, 0], [0, 0], color=BAD_color, label='Estimated BAD')
     # ax.legend(loc='center left')
 
-    ax = fig.add_axes([0.98, 0.05, 0.01, 0.9])
-    cmap = 'BuPu'
+    ax = fig.add_axes([0.95, 0.16, 0.01, 0.75])
+    cmap = plt.get_cmap('BuPu')
     norm = m_colors.Normalize(vmin=10, vmax=30)
     m_colorbar.ColorbarBase(ax, cmap=cmap,
                             norm=norm,
