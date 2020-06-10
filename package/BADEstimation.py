@@ -571,11 +571,11 @@ class GenomeSegmentator:  # gs
         self.atomic_region_length = 600  # length of an atomic region in snps
         self.overlap = 300  # length of regions overlap in snps
         self.min_segment_length = 2  # minimal segment length in snps
-        self.chromosomes = chromosomes_order  # {'chr1': length_in_bp, ...}
+        self.chromosomes_order = chromosomes_order  # ['chr1', 'chr2', ...]
 
         self.chr_segmentations = []  # list of ChromosomeSegmentation instances
 
-        for chromosome in self.chromosomes:
+        for chromosome in self.chromosomes_order:
             chr_segmentation = ChromosomeSegmentation(self, chromosome, ChromosomePosition.chromosomes[chromosome])
             if self.verbose:
                 print('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
@@ -608,7 +608,7 @@ class GenomeSegmentator:  # gs
 
 def parse_input_file(opened_file, allele_reads_tr=0, force_sort=False):
     snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
-    chromosome_order = []
+    chromosomes_order = []
     for line_number, line in enumerate(opened_file, 1):
         if line[0] == '#':
             continue
@@ -625,15 +625,15 @@ def parse_input_file(opened_file, allele_reads_tr=0, force_sort=False):
                       ' a non-negative integer in line #{}'.format(line_number))
         ref_read_count = int(parsed_line[5])
         alt_read_count = int(parsed_line[6])
-        if parsed_line[0] not in chromosome_order:
-            chromosome_order.append(parsed_line[0])
+        if parsed_line[0] not in chromosomes_order:
+            chromosomes_order.append(parsed_line[0])
         if ref_read_count < allele_reads_tr or alt_read_count < allele_reads_tr:
             continue
 
         snps_collection[parsed_line[0]].append((int(parsed_line[1]), ref_read_count, alt_read_count))
     if force_sort:
-        chromosome_order = ChromosomePosition.sorted_chromosomes
-    return snps_collection, chromosome_order, opened_file.name
+        chromosomes_order = ChromosomePosition.sorted_chromosomes
+    return snps_collection, chromosomes_order, opened_file.name
 
 
 def segmentation_start():
@@ -661,7 +661,7 @@ def segmentation_start():
         print(__doc__)
         exit('Error: {}'.format(e))
 
-    snps_collection, chromosome_order, full_name = args['<file>']
+    snps_collection, chromosomes_order, full_name = args['<file>']
     file_name = os.path.splitext(os.path.basename(full_name))[0]
 
     output_file_path = args['--output']
@@ -674,7 +674,7 @@ def segmentation_start():
     states = [4 / 3, 1.5, 2.5, 6]
     t = time.clock()
     GS = GenomeSegmentator(snps_collection=snps_collection,
-                           chromosomes_order=chromosome_order,
+                           chromosomes_order=chromosomes_order,
                            out=output_file_path,
                            segmentation_mode=mode,
                            extra_states=states,

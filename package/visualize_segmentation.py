@@ -1,7 +1,8 @@
 import os
 import numpy as np
 import pandas as pd
-import matplotlib as mpl
+import matplotlib.colors as m_colors
+import matplotlib.colorbar as m_colorbar
 from matplotlib import pyplot as plt, ticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
@@ -34,7 +35,7 @@ snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min
 snps['cov'] = snps['ref_c'] + snps['alt_c']
 snps['log_cov'] = np.log10(snps['cov'])
 
-ploidy = pd.read_table(ploidy_name)
+BAD_table = pd.read_table(ploidy_name)
 
 chrs = ('chr10', 'chr17')
 BAD_color = '#0072B266'
@@ -52,7 +53,7 @@ fig.tight_layout(pad=1.5)
 plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
 cax = None
 for chr, ax in zip(chrs, axs):
-    chr_ploidy = ploidy[ploidy['#chr'] == chr]
+    chr_BAD = BAD_table[BAD_table['#chr'] == chr]
     chr_snps = snps[snps['chr'] == chr].copy()
     chr_snps['AD'] = chr_snps['AD'].apply(lambda y: y_max - delta_y if y > y_max else y)
 
@@ -63,7 +64,7 @@ for chr, ax in zip(chrs, axs):
 
     borders_to_draw = []
     last_end = 1
-    for index, (pl_chr, start, end, BAD, *values) in chr_ploidy.iterrows():
+    for index, (pl_chr, start, end, BAD, *values) in chr_BAD.iterrows():
         if start != last_end:
             if last_end == 1:
                 borders_to_draw += [start - ChromosomePosition.chromosomes[chr] * vd]
@@ -123,7 +124,7 @@ fig.tight_layout(pad=1.5)
 plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
 
 for chr, ax in zip(chrs, axs):
-    chr_ploidy = ploidy[ploidy['#chr'] == chr]
+    chr_BAD = BAD_table[BAD_table['#chr'] == chr]
     chr_snps = snps[snps['chr'] == chr].copy()
     chr_snps['AD'] = chr_snps['AD'].apply(lambda y: y_max - delta_y if y > y_max else y)
 
@@ -137,7 +138,7 @@ for chr, ax in zip(chrs, axs):
     borders_to_draw = []
     segmentation_borders = []
     last_end = 1
-    for index, (pl_chr, start, end, BAD, *values) in chr_ploidy.iterrows():
+    for index, (pl_chr, start, end, BAD, *values) in chr_BAD.iterrows():
         if start != last_end:
             if last_end == 1:
                 borders_to_draw += [start - ChromosomePosition.chromosomes[chr] * vd]
@@ -212,10 +213,10 @@ ax.legend(loc='upper left')
 
 ax = fig.add_axes([0.07, 0.87, 0.2, 0.03])
 cmap = 'BuPu'
-norm = mpl.colors.Normalize(vmin=10, vmax=30)
-cb = mpl.colorbar.ColorbarBase(ax, cmap=cmap,
-                               norm=norm,
-                               orientation='horizontal')
+norm = m_colors.Normalize(vmin=10, vmax=30)
+cb = m_colorbar.ColorbarBase(ax, cmap=cmap,
+                             norm=norm,
+                             orientation='horizontal')
 
 plt.savefig(os.path.expanduser('~/AC_4/Figure_AS_4_stage2.svg'), dpi=300)
 plt.show()
