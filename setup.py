@@ -18,7 +18,10 @@ setup(
         'docopt>=0.6.2',
         'numpy>=1.18.0',
         'schema>=0.7.2',
-        'contextlib2>=0.5.5'
+        'contextlib2>=0.5.5',
+        'pandas>=1.0.4',
+        'matplotlib>=3.2.1',
+        'seaborn>=0.10.1'
     ],
     python_requires='>=3.6',
     url="https://github.com/wish1/BAD_segmentation",

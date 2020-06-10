@@ -1,14 +1,16 @@
 """
 
 Usage:
-    segmentation <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>]
-    segmentation (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>]
+    segmentation <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort]
+    segmentation (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort]
+
     segmentation -h | --help
     segmentation -V | --version
 
 Arguments:
     <file>     Path to input file in tsv format with columns:
     chr pos ID ref_base alt_base ref_read_count alt_read_count.
+
 
 Options:
     -h, --help                  Show help.
@@ -17,6 +19,7 @@ Options:
     -O <path>, --output <path>  Output directory or file path. [default: ./]
     --allele_reads_tr <int>     Allele reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                 alt_read_count >= x. [default: 5]
+    --force-sort                Do chromosomes need to be sorted
     --test                      Run segmentation on test file
 """
 
@@ -455,7 +458,8 @@ class ChromosomeSegmentation:  # chromosome
     def unpack_snp_collection(self):
         try:
             positions, snps = zip(
-                *((pos, (ref_count, alt_count)) for pos, ref_count, alt_count in self.gs.snps_collection[self.chromosome])
+                *((pos, (ref_count, alt_count)) for pos, ref_count, alt_count in
+                  self.gs.snps_collection[self.chromosome])
             )
         except ValueError:
             positions, snps = [], []
@@ -544,8 +548,8 @@ class ChromosomeSegmentation:  # chromosome
 
 
 class GenomeSegmentator:  # gs
-    def __init__(self, snps_collection, out, segmentation_mode='corrected', extra_states=None, b_penalty='CAIC',
-                 prior=None, verbose=False, allele_reads_tr=0):
+    def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', extra_states=None,
+                 b_penalty='CAIC', prior=None, verbose=False, allele_reads_tr=0):
 
         self.verbose = verbose
         self.mode = segmentation_mode  # 'corrected' or 'binomial'
@@ -567,7 +571,7 @@ class GenomeSegmentator:  # gs
         self.atomic_region_length = 600  # length of an atomic region in snps
         self.overlap = 300  # length of regions overlap in snps
         self.min_segment_length = 2  # minimal segment length in snps
-        self.chromosomes = sorted(list(ChromosomePosition.chromosomes.keys()))  # {'chr1': length_in_bp, ...}
+        self.chromosomes = chromosomes_order  # {'chr1': length_in_bp, ...}
 
         self.chr_segmentations = []  # list of ChromosomeSegmentation instances
 
@@ -602,8 +606,9 @@ class GenomeSegmentator:  # gs
                 yield segment
 
 
-def parse_input_file(opened_file, allele_reads_tr=0):
+def parse_input_file(opened_file, allele_reads_tr=0, force_sort=False):
     snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
+    chromosome_order = []
     for line_number, line in enumerate(opened_file, 1):
         if line[0] == '#':
             continue
@@ -620,10 +625,15 @@ def parse_input_file(opened_file, allele_reads_tr=0):
                       ' a non-negative integer in line #{}'.format(line_number))
         ref_read_count = int(parsed_line[5])
         alt_read_count = int(parsed_line[6])
+        if parsed_line[0] not in chromosome_order:
+            chromosome_order.append(parsed_line[0])
         if ref_read_count < allele_reads_tr or alt_read_count < allele_reads_tr:
             continue
+
         snps_collection[parsed_line[0]].append((int(parsed_line[1]), ref_read_count, alt_read_count))
-    return snps_collection, opened_file.name
+    if force_sort:
+        chromosome_order = ChromosomePosition.sorted_chromosomes
+    return snps_collection, chromosome_order, opened_file.name
 
 
 def segmentation_start():
@@ -635,7 +645,8 @@ def segmentation_start():
         '<file>': And(
             Const(os.path.exists, error='Input file should exist'),
             Use(open, error='Input file should be readable'),
-            Use(lambda x: parse_input_file(x, int(args['--allele_reads_tr'])), error='Wrong input file format')
+            Use(lambda x: parse_input_file(x, int(args['--allele_reads_tr']), args["--force-sort"]),
+                error='Wrong input file format')
         ),
         '--output': And(
             Const(os.path.exists, error='Output path should exist'),
@@ -650,7 +661,7 @@ def segmentation_start():
         print(__doc__)
         exit('Error: {}'.format(e))
 
-    snps_collection, full_name = args['<file>']
+    snps_collection, chromosome_order, full_name = args['<file>']
     file_name = os.path.splitext(os.path.basename(full_name))[0]
 
     output_file_path = args['--output']
@@ -663,6 +674,7 @@ def segmentation_start():
     states = [4 / 3, 1.5, 2.5, 6]
     t = time.clock()
     GS = GenomeSegmentator(snps_collection=snps_collection,
+                           chromosomes_order=chromosome_order,
                            out=output_file_path,
                            segmentation_mode=mode,
                            extra_states=states,
