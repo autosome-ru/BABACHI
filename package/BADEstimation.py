@@ -1,8 +1,8 @@
 """
 
 Usage:
-    segmentation <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort]
-    segmentation (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort]
+    segmentation <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize]
+    segmentation (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize]
 
     segmentation -h | --help
     segmentation -V | --version
@@ -32,6 +32,7 @@ from package.helpers import ChromosomePosition, pack
 from abc import ABC, abstractmethod
 from docopt import docopt
 from package import __version__
+from package.visualize_segmentation import init_from_snps_collection
 
 
 class BADSegmentsContainer:
@@ -673,17 +674,20 @@ def segmentation_start():
     b_penalty = 'CAIC'
     states = [4 / 3, 1.5, 2.5, 6]
     t = time.clock()
-    GS = GenomeSegmentator(snps_collection=snps_collection,
-                           chromosomes_order=chromosomes_order,
-                           out=output_file_path,
-                           segmentation_mode=mode,
-                           extra_states=states,
-                           b_penalty=b_penalty,
-                           verbose=verbose,
-                           allele_reads_tr=args['--allele_reads_tr']
-                           )
-    try:
-        GS.estimate_BAD()
-    except Exception as e:
-        raise e
+    # GS = GenomeSegmentator(snps_collection=snps_collection,
+    #                        chromosomes_order=chromosomes_order,
+    #                        out=output_file_path,
+    #                        segmentation_mode=mode,
+    #                        extra_states=states,
+    #                        b_penalty=b_penalty,
+    #                        verbose=verbose,
+    #                        allele_reads_tr=args['--allele_reads_tr']
+    #                        )
+    # try:
+    #     GS.estimate_BAD()
+    # except Exception as e:
+    #     raise e
     print('Total time: {} s'.format(time.clock() - t))
+
+    if args['--visualize']:
+        init_from_snps_collection(snps_collection=snps_collection, BAD_file=output_file_path)

@@ -20,7 +20,7 @@ setup(
         'schema>=0.7.2',
         'contextlib2>=0.5.5',
         'pandas>=1.0.4',
-        'matplotlib>=3.2.1',
+        'matplotlib==3.0.2',
         'seaborn>=0.10.1'
     ],
     python_requires='>=3.6',

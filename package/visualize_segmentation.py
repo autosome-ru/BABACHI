@@ -15,68 +15,81 @@ plt.rcParams['font.weight'] = "medium"
 plt.rcParams['axes.labelweight'] = 'medium'
 plt.rcParams['figure.titleweight'] = 'medium'
 plt.rcParams['axes.titleweight'] = 'medium'
-plt.rcParams['figure.figsize'] = 14, 6
+plt.rcParams['figure.figsize'] = 14, 3
 plt.rcParams["legend.framealpha"] = 1
 plt.rcParams['axes.xmargin'] = 0
 plt.rcParams['axes.ymargin'] = 0
 plt.rcParams["legend.framealpha"] = 1
 
-# name = 'HCT-116_colon_carcinoma!_labs_richard-myers___biosamples_ENCBS389ENC_'
-name = 'HCT-116_colon_carcinoma!_labs_michael-snyder___biosamples_ENCBS626JHZ_'
-snps_name = os.path.expanduser('~/Documents/ASB/simulation/' + name + '.tsv')
-ploidy_name = os.path.expanduser('~/Documents/ASB/simulation/' + name + '_ploidy.tsv')
-cosmic_name = os.path.expanduser('~/Documents/ASB/Cell_lines/cell_lines_copy_number.csv')
-cnv_line = 'HCT-116'
+# snps = pd.read_table(snps_name, header=None)
+# snps.columns = ['chr', 'pos', 'ID', 'ref', 'alt', 'ref_c', 'alt_c']
+# snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
+# snps['cov'] = snps['ref_c'] + snps['alt_c']
 
-snps = pd.read_table(snps_name, header=None)
-snps.columns = ['chr', 'pos', 'ID', 'ref', 'alt', 'ref_c', 'alt_c']
-snps = snps[snps['ID'] != '.']
-snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
-snps['cov'] = snps['ref_c'] + snps['alt_c']
-snps['log_cov'] = np.log10(snps['cov'])
 
-BAD_table = pd.read_table(ploidy_name)
+# def init_visualization(snps, BAD_file):
+#     BAD_table = pd.read_table(BAD_file)
+#     file_name = os.path.splitext(os.path.basename(BAD_file))[0]
+#     out_path = os.path.dirname(BAD_file)
+#
+#     snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
+#     snps['cov'] = snps['ref_c'] + snps['alt_c']
+#
+#     for chromosome in snps['chr'].unique():
+#         visualize_chromosome(os.path.join(out_path, '{}_{}.svg'.format(file_name, chromosome)),
+#                              chromosome, snps[snps['chr'] == chromosome],
+#                              BAD_table[BAD_table['#chr'] == chromosome])
 
-chrs = ('chr10', 'chr17')
-BAD_color = '#0072B266'
-BAD_color_1 = '#0072B2CC'
-COSMIC_color = '#D55E00'
-BAD_lw = 10
-COSMIC_lw = 4
-y_min = 0.8
-y_max = 6
-delta_y = 0.05
 
-# BAD step
-fig, (*axs,) = plt.subplots(len(chrs), 1)
-fig.tight_layout(pad=1.5)
-plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
+def init_from_snps_collection(snps_collection, BAD_file):
+    BAD_table = pd.read_table(BAD_file)
+    file_name = os.path.splitext(os.path.basename(BAD_file))[0]
+    out_path = os.path.join(os.path.dirname(BAD_file), '{}_visualization'.format(file_name))
+    if not os.path.isdir(out_path):
+        os.mkdir(out_path)
 
-for chr, ax in zip(chrs, axs):
-    chr_BAD = BAD_table[BAD_table['#chr'] == chr]
-    chr_snps = snps[snps['chr'] == chr].copy()
-    chr_snps['AD'] = chr_snps['AD'].apply(lambda y: y_max - delta_y if y > y_max else y)
+    column_names = ['pos', 'ref_c', 'alt_c']
+    for chromosome in snps_collection.keys():
+        print('Visualizing {}'.format(chromosome))
+        snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection[chromosome]))))
+        snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
+        snps['cov'] = snps['ref_c'] + snps['alt_c']
+        visualize_chromosome(os.path.join(out_path, '{}_{}.svg'.format(file_name, chromosome)),
+                             chromosome, snps,
+                             BAD_table[BAD_table['#chr'] == chromosome])
+
+
+def visualize_chromosome(out_path, chromosome, snps, BAD_segments):
+    fig, ax = plt.subplots()
+    fig.tight_layout(h_pad=3, w_pad=3)
+    plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
+
+    BAD_color = '#0072B2CC'
+    BAD_lw = 10
+    y_min = 0.8
+    y_max = 6
+    delta_y = 0.05
+
+    snps['AD'] = snps['AD'].apply(lambda y: y_max - delta_y if y > y_max else y)
 
     bar_positions = []
     bar_widths = []
     bar_colors = []
-    vd = 1 / 500
+    gap = 1 / 500 * ChromosomePosition.chromosomes[chromosome]
 
     BADs = []
 
     borders_to_draw = []
     segmentation_borders = []
     last_end = 1
-    for index, (pl_chr, start, end, BAD, *values) in chr_BAD.iterrows():
+    for index, (pl_chr, start, end, BAD, *values) in BAD_segments.iterrows():
         if start != last_end:
             if last_end == 1:
-                borders_to_draw += [start - ChromosomePosition.chromosomes[chr] * vd]
-                segmentation_borders += [start - ChromosomePosition.chromosomes[chr] * vd]
+                borders_to_draw += [start - gap]
+                segmentation_borders += [start - gap]
             else:
-                borders_to_draw += [last_end + ChromosomePosition.chromosomes[chr] * vd,
-                                    start - ChromosomePosition.chromosomes[chr] * vd]
-                segmentation_borders += [last_end + ChromosomePosition.chromosomes[chr] * vd,
-                                         start - ChromosomePosition.chromosomes[chr] * vd]
+                borders_to_draw += [last_end + gap, start - gap]
+                segmentation_borders += [last_end + gap, start - gap]
             bar_colors.append('#AAAAAA')
             BADs.append(None)
         else:
@@ -85,9 +98,9 @@ for chr, ax in zip(chrs, axs):
         last_end = end
         bar_colors.append('C2')
         BADs.append(BAD)
-    if last_end != ChromosomePosition.chromosomes[chr] + 1:
-        borders_to_draw += [last_end + ChromosomePosition.chromosomes[chr] * vd]
-        segmentation_borders += [last_end + ChromosomePosition.chromosomes[chr] * vd]
+    if last_end != ChromosomePosition.chromosomes[chromosome] + 1:
+        borders_to_draw += [last_end + gap]
+        segmentation_borders += [last_end + gap]
         bar_colors.append('#AAAAAA')
         BADs.append(None)
 
@@ -96,7 +109,7 @@ for chr, ax in zip(chrs, axs):
         if i == 0 or bar_colors[i - 1] != color:
             reduced_bar_colors.append(color)
 
-    borders_for_bars = [1] + borders_to_draw + [ChromosomePosition.chromosomes[chr] + 1]
+    borders_for_bars = [1] + borders_to_draw + [ChromosomePosition.chromosomes[chromosome] + 1]
     for i in range(len(borders_for_bars) - 1):
         bar_positions.append((borders_for_bars[i] + borders_for_bars[i + 1]) / 2)
         bar_widths.append(borders_for_bars[i + 1] - borders_for_bars[i])
@@ -104,49 +117,47 @@ for chr, ax in zip(chrs, axs):
     for border in segmentation_borders:
         ax.axvline(x=border, ymin=0, ymax=0.5, linestyle='--', color='C4')
 
-    all_borders = [1] + segmentation_borders + [ChromosomePosition.chromosomes[chr] + 1]
+    all_borders = [1] + segmentation_borders + [ChromosomePosition.chromosomes[chromosome] + 1]
     for i in range(len(all_borders) - 1):
         if BADs[i]:
             ax.axhline(y=BADs[i],
-                       xmin=all_borders[i] / ChromosomePosition.chromosomes[chr],
-                       xmax=all_borders[i + 1] / ChromosomePosition.chromosomes[chr],
-                       linewidth=BAD_lw, color=BAD_color_1,
+                       xmin=all_borders[i] / ChromosomePosition.chromosomes[chromosome],
+                       xmax=all_borders[i + 1] / ChromosomePosition.chromosomes[chromosome],
+                       linewidth=BAD_lw, color=BAD_color,
                        solid_capstyle='butt')
 
-    ax.scatter(x=chr_snps['pos'], y=list(chr_snps['AD']), c=chr_snps['cov'], cmap='BuPu', s=2, vmin=10, vmax=30)
-    ax.set_xlim(0, ChromosomePosition.chromosomes[chr])
+    ax.scatter(x=snps['pos'], y=list(snps['AD']), c=snps['cov'], cmap='BuPu', s=2, vmin=10, vmax=30)
+    ax.set_xlim(0, ChromosomePosition.chromosomes[chromosome])
     ax.set_ylim(y_min, y_max)
     ax.grid(which='major', axis='both')
     ax.set_xticklabels([])
     ax.set_yticks(list(range(1, int(y_max) + 1)))
-    ax.text(0.99, 0.95, 'Segmentation on {}'.format(chr),
+    ax.text(0.99, 0.95, '{}'.format(chromosome),
             horizontalalignment='right',
             verticalalignment='top',
             transform=ax.transAxes)
     ax.set_ylabel('AD')
-    plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
+    # plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
 
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("bottom", size="10%", pad=0.05)
     cax.get_yaxis().set_ticks([])
-    cax.set_xlim(1, ChromosomePosition.chromosomes[chr])
+    cax.set_xlim(1, ChromosomePosition.chromosomes[chromosome])
     cax.set_ylim(0, 1)
     cax.bar(bar_positions, [1] * len(bar_positions), bar_widths, color=reduced_bar_colors, linewidth=0)
 
-cax.set_xlabel('Chromosome position, bp')
-plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
+    cax.set_xlabel('Chromosome position, bp')
+    plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
 
-ax = axs[-1]
-ax.plot([0, 0], [0, 0], color=BAD_color_1, label='Estimated BAD')
-ax.legend(loc='upper left')
+    ax.plot([0, 0], [0, 0], color=BAD_color, label='Estimated BAD')
+    # ax.legend(loc='center left')
 
-ax = fig.add_axes([0.07, 0.87, 0.2, 0.03])
-cmap = 'BuPu'
-norm = m_colors.Normalize(vmin=10, vmax=30)
-cb = m_colorbar.ColorbarBase(ax, cmap=cmap,
-                             norm=norm,
-                             orientation='horizontal')
+    ax = fig.add_axes([0.98, 0.05, 0.01, 0.9])
+    cmap = 'BuPu'
+    norm = m_colors.Normalize(vmin=10, vmax=30)
+    m_colorbar.ColorbarBase(ax, cmap=cmap,
+                            norm=norm,
+                            orientation='vertical')
 
-plt.savefig(os.path.expanduser('~/AC_4/Figure_AS_4_stage2.svg'), dpi=300)
-plt.show()
-plt.close(fig)
+    plt.savefig(out_path, dpi=300)
+    plt.close(fig)
