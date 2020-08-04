@@ -1,6 +1,5 @@
-# BAD Segmentation
-
-BAD Segmentation is a tool for constant Background Allelic Dosage (BAD) genome regions calling from
+# BABACHI
+BABACHI is a tool for constant Background Allelic Dosage (BAD) genome regions calling from
 non-phased heterozygous SNPs. It is aimed at estimation of BAD on low-coverage sequencing data, where
 the precise estimation of allelic copy numbers is not possible.
 
@@ -43,4 +42,4 @@ segmentation --test
 ```
 
 
-The BAD Segmentation tool is maintained by Sergey Abramov and Alexandr Boytsov.
+The BABACHI tool is maintained by Sergey Abramov and Alexandr Boytsov.
