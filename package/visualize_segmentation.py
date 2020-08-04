@@ -32,6 +32,8 @@ def init_from_snps_collection(snps_collection, BAD_file):
     for chromosome in snps_collection.keys():
         print('Visualizing {}'.format(chromosome))
         snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection[chromosome]))))
+        if snps.empty:
+            continue
         snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
         snps['cov'] = snps['ref_c'] + snps['alt_c']
         visualize_chromosome(os.path.join(out_path, '{}_{}.svg'.format(file_name, chromosome)),
@@ -40,6 +42,8 @@ def init_from_snps_collection(snps_collection, BAD_file):
 
 
 def visualize_chromosome(out_path, chromosome, snps, BAD_segments):
+    if BAD_segments.empty:
+        return
     fig, ax = plt.subplots()
     fig.tight_layout(rect=[0, 0.01, 0.95, 1])
     plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))

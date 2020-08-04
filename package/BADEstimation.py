@@ -17,7 +17,7 @@ Options:
     -V, --version               Show version.
     -q, --quiet                 Less log messages during work time.
     -O <path>, --output <path>  Output directory or file path. [default: ./]
-    --allele_reads_tr <int>     Allele reads threshold. Input SNPs will be filtered by ref_read_count >= x and
+    --allele_reads_tr <int>     Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                 alt_read_count >= x. [default: 5]
     --force-sort                Do chromosomes need to be sorted
     --visualize                 Perform visualization of SNP-wise AD and BAD for each chromosome.
@@ -568,7 +568,7 @@ class GenomeSegmentator:  # gs
             self.prior = prior
 
         self.snps_collection = snps_collection  # input file in .vcf format
-        self.out = open(out, 'w')  # output file in .bed format
+        self.out = out  # output file in .bed format
 
         self.snp_per_chr_tr = 100  # minimal number of snps in chromosome to start segmentation
         self.atomic_region_length = 600  # length of an atomic region in snps
@@ -589,19 +589,20 @@ class GenomeSegmentator:  # gs
 
     # noinspection PyTypeChecker
     def estimate_BAD(self):
-        self.out.write(
-            pack(['#chr', 'start', 'end', 'BAD'] + ['Q{:.2f}'.format(BAD) for BAD in self.BAD_list] + ['SNP_count',
-                                                                                                       'sum_cover']))
-        for j in range(len(self.chr_segmentations)):
-            chromosome = self.chr_segmentations[j]
-            chromosome.estimate_chr()
-            self.write_BAD_to_file(chromosome)
-            self.chr_segmentations[j] = None
+        with open(self.out, 'w') as outfile:
+            outfile.write(
+                pack(['#chr', 'start', 'end', 'BAD'] + ['Q{:.2f}'.format(BAD) for BAD in self.BAD_list] +
+                     ['SNP_count', 'sum_cover']))
+            for j in range(len(self.chr_segmentations)):
+                chromosome = self.chr_segmentations[j]
+                chromosome.estimate_chr()
+                self.write_BAD_to_file(chromosome, outfile)
+                self.chr_segmentations[j] = None
 
-    def write_BAD_to_file(self, chromosome_segmentation):
+    def write_BAD_to_file(self, chromosome_segmentation, outfile):
         segments_generator = chromosome_segmentation.segments_container.get_BAD_segments(chromosome_segmentation)
         for segment in self.filter_segments(segments_generator):
-            self.out.write(str(segment))
+            outfile.write(str(segment))
 
     def filter_segments(self, segments):
         for segment in segments:
@@ -655,7 +656,7 @@ def segmentation_start():
             Const(os.path.exists, error='Output path should exist'),
             Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
         ),
-        '--allele_reads_tr': Use(int, error='Allele reads threshold must be integer'),
+        '--allele_reads_tr': Use(int, error='Allelic reads threshold must be integer'),
         str: bool
     })
     try:

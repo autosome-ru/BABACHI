@@ -3,7 +3,7 @@ from package import __version__
 from os.path import join, dirname
 
 setup(
-    name='BAD-segmentation',
+    name='BABACHI',
     version=__version__,
     packages=find_packages(),
     package_data={'package': ['tests/*.tsv']},
@@ -24,5 +24,5 @@ setup(
         'seaborn>=0.10.1'
     ],
     python_requires='>=3.6',
-    url="https://github.com/wish1/BAD_segmentation",
+    url="https://github.com/autosome-ru/BABACHI",
 )
