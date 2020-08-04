@@ -10,7 +10,7 @@ setup(
     long_description=open(join(dirname(__file__), 'README.md')).read(),
     entry_points={
         'console_scripts': [
-            'segmentation = package.BADEstimation:segmentation_start',
+            'babachi = package.BADEstimation:segmentation_start',
         ],
     },
     author="Sergey Abramov, Alexandr Boytsov",

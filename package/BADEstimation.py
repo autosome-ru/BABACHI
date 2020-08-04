@@ -1,11 +1,11 @@
 """
 
 Usage:
-    segmentation <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize]
-    segmentation (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize]
+    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize]
+    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize]
 
-    segmentation -h | --help
-    segmentation -V | --version
+    babachi -h | --help
+    babachi -V | --version
 
 Arguments:
     <file>     Path to input file in tsv format with columns:
@@ -640,7 +640,7 @@ def parse_input_file(opened_file, allele_reads_tr=0, force_sort=False):
 
 
 def segmentation_start():
-    args = docopt(__doc__, version='BAD segmentation v{}'.format(__version__))
+    args = docopt(__doc__, version='BABACHI v{}'.format(__version__))
     if args['--test']:
         args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests/test.tsv')
 
