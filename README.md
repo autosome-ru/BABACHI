@@ -14,10 +14,8 @@ The output is a .bed file with BAD annotations.
 
 ## Installation
 
-//to be uploaded on PyPI
-temporary:
-``` 
-pip3 install git+ssh://git@github.com/autosome-ru/BABACHI
+```
+pip3 install babachi 
 ```
 
 ## Requirements
@@ -28,7 +26,6 @@ python >= 3.6
 ## Usage
 ```
 babachi <options>...
-python -m babachi <options>...
 ```
 To get full usage description one can execute:
 ```
