@@ -1,13 +1,18 @@
 from setuptools import setup, find_packages
-from src.babachi import __version__
-from os.path import join, dirname
+import os
+
+version_module = {}
+dir_name = os.path.dirname(__file__)
+with open(os.path.join(dir_name, "src/babachi/version.py")) as fp:
+    exec(fp.read(), version_module)
+    __version__ = version_module['__version__']
 
 setup(
     name='babachi',
     version=__version__,
     packages=find_packages(),
     package_data={'babachi': ['tests/*.tsv']},
-    long_description=open(join(dirname(__file__), 'README.md')).read(),
+    long_description=open(os.path.join(dir_name, 'README.md')).read(),
     entry_points={
         'console_scripts': [
             'babachi = babachi.BADEstimation:segmentation_start',
