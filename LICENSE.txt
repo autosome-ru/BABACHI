@@ -14,7 +14,7 @@ as the name is changed.
 
  1. If you prefer more standard licenses, feel free to treat WTFPL as MIT licence (text below).
 
- Copyright (c) 2018 autosome.ru lab
+ Copyright (c) 2020 autosome.ru lab
 
  Permission is hereby granted, free of charge, to any person obtaining
  a copy of this software and associated documentation files (the
