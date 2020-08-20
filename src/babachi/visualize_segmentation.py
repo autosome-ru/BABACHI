@@ -5,7 +5,7 @@ import matplotlib.colorbar as m_colorbar
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
-from package.helpers import ChromosomePosition
+from src.babachi import ChromosomePosition
 
 sns.set(font_scale=1.2, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
                                                              '#D55E00', '#CC79A7'))

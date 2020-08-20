@@ -1,20 +1,21 @@
 from setuptools import setup, find_packages
-from package import __version__
+from src.babachi import __version__
 from os.path import join, dirname
 
 setup(
     name='babachi',
     version=__version__,
     packages=find_packages(),
-    package_data={'package': ['tests/*.tsv']},
+    package_data={'babachi': ['tests/*.tsv']},
     long_description=open(join(dirname(__file__), 'README.md')).read(),
     entry_points={
         'console_scripts': [
-            'babachi = package.BADEstimation:segmentation_start',
+            'babachi = babachi.BADEstimation:segmentation_start',
         ],
     },
     author="Sergey Abramov, Alexandr Boytsov",
     author_email='aswq22013@gmail.com',
+    package_dir={'': 'src'},
     install_requires=[
         'docopt>=0.6.2',
         'numpy>=1.18.0',

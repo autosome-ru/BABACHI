@@ -30,11 +30,11 @@ import numpy as np
 import os.path
 from schema import Schema, And, Use, SchemaError, Const
 import time
-from package.helpers import ChromosomePosition, pack
+from src.babachi import ChromosomePosition, pack
 from abc import ABC, abstractmethod
 from docopt import docopt
-from package import __version__
-from package.visualize_segmentation import init_from_snps_collection
+from src.babachi import __version__
+from src.babachi.visualize_segmentation import init_from_snps_collection
 
 
 class BADSegmentsContainer:
