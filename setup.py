@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+from io import open
 import os
 
 version_module = {}
@@ -7,12 +8,16 @@ with open(os.path.join(dir_name, "src/babachi/version.py")) as fp:
     exec(fp.read(), version_module)
     __version__ = version_module['__version__']
 
+with open(os.path.join(dir_name, "README.md"), encoding='utf8') as fh:
+    long_description = fh.read()
+
 setup(
     name='babachi',
     version=__version__,
-    packages=find_packages(),
+    packages=find_packages('src'),
+    include_package_data=True,
     package_data={'babachi': ['tests/*.tsv']},
-    long_description=open(os.path.join(dir_name, 'README.md')).read(),
+    long_description=long_description,
     entry_points={
         'console_scripts': [
             'babachi = babachi.BADEstimation:segmentation_start',
@@ -30,6 +35,9 @@ setup(
         'matplotlib>=3.2.1',
         'seaborn>=0.10.1'
     ],
+    extras_require={
+        'dev': ['wheel', 'twine', 'setuptools_scm'],
+    },
     python_requires='>=3.6',
     url="https://github.com/autosome-ru/BABACHI",
 )
