@@ -14,6 +14,7 @@ setup(
         ],
     },
     author="Sergey Abramov, Alexandr Boytsov",
+    author_email='aswq22013@gmail.com',
     install_requires=[
         'docopt>=0.6.2',
         'numpy>=1.18.0',
