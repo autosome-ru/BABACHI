@@ -3,7 +3,7 @@ from package import __version__
 from os.path import join, dirname
 
 setup(
-    name='BABACHI',
+    name='babachi',
     version=__version__,
     packages=find_packages(),
     package_data={'package': ['tests/*.tsv']},
