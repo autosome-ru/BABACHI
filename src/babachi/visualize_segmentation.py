@@ -21,7 +21,7 @@ plt.rcParams['axes.ymargin'] = 0
 plt.rcParams["legend.framealpha"] = 1
 
 
-def init_from_snps_collection(snps_collection, BAD_file):
+def init_from_snps_collection(snps_collection, BAD_file, verbose=True):
     BAD_table = pd.read_table(BAD_file)
     file_name = os.path.splitext(os.path.basename(BAD_file))[0]
     out_path = os.path.join(os.path.dirname(BAD_file), '{}_visualization'.format(file_name))
@@ -30,7 +30,8 @@ def init_from_snps_collection(snps_collection, BAD_file):
 
     column_names = ['pos', 'ref_c', 'alt_c']
     for chromosome in snps_collection.keys():
-        print('Visualizing {}'.format(chromosome))
+        if verbose:
+            print('Visualizing {}'.format(chromosome))
         snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection[chromosome]))))
         if snps.empty:
             continue

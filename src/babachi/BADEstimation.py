@@ -3,31 +3,35 @@
 Usage:
     babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize]
     babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize]
+    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-q | --quiet] [--allele_reads_tr <int>]
     babachi -h | --help
 
 Arguments:
     <file>     Path to input file in tsv format with columns:
     chr pos ID ref_base alt_base ref_read_count alt_read_count.
+    <badmap>   Path to badmap .bed format file
+    <int>      Integer
 
 
 Options:
-    -h, --help                  Show help.
-    -q, --quiet                 Less log messages during work time.
-    -O <path>, --output <path>  Output directory or file path. [default: ./]
-    --allele_reads_tr <int>     Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
-                                alt_read_count >= x. [default: 5]
-    --force-sort                Do chromosomes need to be sorted
-    --visualize                 Perform visualization of SNP-wise AD and BAD for each chromosome.
-                                Will create a directory in output path for the .svg visualizations.
-    --test                      Run segmentation on test file
+    -h, --help                      Show help.
+    -q, --quiet                     Less log messages during work time.
+    -b <badmap>, --badmap <badmap>  Input badmap file
+    -O <path>, --output <path>      Output directory or file path. [default: ./]
+    --allele_reads_tr <int>         Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
+                                    alt_read_count >= x. [default: 5]
+    --force-sort                    Do chromosomes need to be sorted
+    --visualize                     Perform visualization of SNP-wise AD and BAD for each chromosome.
+                                    Will create a directory in output path for the .svg visualizations.
+    --test                          Run segmentation on test file
 """
 
 import math
 import numpy as np
 import os.path
-from schema import Schema, And, Use, SchemaError, Const
+from schema import Schema, And, Use, SchemaError, Const, Or
 import time
-from babachi.helpers import ChromosomePosition, pack
+from babachi.helpers import ChromosomePosition, pack, parse_input_file
 from abc import ABC, abstractmethod
 from docopt import docopt
 from babachi.visualize_segmentation import init_from_snps_collection
@@ -606,36 +610,6 @@ class GenomeSegmentator:  # gs
                 yield segment
 
 
-def parse_input_file(opened_file, allele_reads_tr=0, force_sort=False):
-    snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
-    chromosomes_order = []
-    for line_number, line in enumerate(opened_file, 1):
-        if line[0] == '#':
-            continue
-        else:
-            parsed_line = line.strip().split('\t')
-            if parsed_line[0] not in ChromosomePosition.chromosomes:
-                print('Invalid chromosome name: {} in line #{}'.format(parsed_line[0], line_number))
-                return False
-            try:
-                if int(parsed_line[1]) <= 0 or int(parsed_line[5]) < 0 or int(parsed_line[6]) < 0:
-                    raise ValueError
-            except ValueError:
-                print('Position, Reference allele read counts, Alternative allele read counts must be'
-                      ' a non-negative integer in line #{}'.format(line_number))
-        ref_read_count = int(parsed_line[5])
-        alt_read_count = int(parsed_line[6])
-        if parsed_line[0] not in chromosomes_order:
-            chromosomes_order.append(parsed_line[0])
-        if ref_read_count < allele_reads_tr or alt_read_count < allele_reads_tr:
-            continue
-
-        snps_collection[parsed_line[0]].append((int(parsed_line[1]), ref_read_count, alt_read_count))
-    if force_sort:
-        chromosomes_order = ChromosomePosition.sorted_chromosomes
-    return snps_collection, chromosomes_order, opened_file.name
-
-
 def segmentation_start():
 
     args = docopt(__doc__)
@@ -649,6 +623,12 @@ def segmentation_start():
             Use(lambda x: parse_input_file(x, int(args['--allele_reads_tr']), args["--force-sort"]),
                 error='Wrong input file format')
         ),
+        '--badmap': Or(
+            Const(lambda x: x is None and not args['visualize']),
+            And(
+                Const(os.path.exists, error='Badmap file should exist'),
+                Const(lambda x: os.access(x, os.R_OK), error='No read permission for badmap file')
+            )),
         '--output': And(
             Const(os.path.exists, error='Output path should exist'),
             Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
@@ -664,30 +644,31 @@ def segmentation_start():
 
     snps_collection, chromosomes_order, full_name = args['<file>']
     file_name = os.path.splitext(os.path.basename(full_name))[0]
+    if not args['visualize']:
+        badmap_file_path = args['--output']
+        if os.path.isdir(badmap_file_path):
+            badmap_file_path += file_name + '.bed'
 
-    output_file_path = args['--output']
-    if os.path.isdir(output_file_path):
-        output_file_path += file_name + '.bed'
-
-    verbose = not args['--quiet']
-    mode = 'corrected'
-    b_penalty = 'CAIC'
-    states = [4 / 3, 1.5, 2.5, 6]
-    t = time.clock()
-    GS = GenomeSegmentator(snps_collection=snps_collection,
-                           chromosomes_order=chromosomes_order,
-                           out=output_file_path,
-                           segmentation_mode=mode,
-                           extra_states=states,
-                           b_penalty=b_penalty,
-                           verbose=verbose,
-                           allele_reads_tr=args['--allele_reads_tr']
-                           )
-    try:
-        GS.estimate_BAD()
-    except Exception as e:
-        raise e
-    print('Total time: {} s'.format(time.clock() - t))
-
-    if args['--visualize']:
-        init_from_snps_collection(snps_collection=snps_collection, BAD_file=output_file_path)
+        verbose = not args['--quiet']
+        mode = 'corrected'
+        b_penalty = 'CAIC'
+        states = [4 / 3, 1.5, 2.5, 6]
+        t = time.clock()
+        GS = GenomeSegmentator(snps_collection=snps_collection,
+                               chromosomes_order=chromosomes_order,
+                               out=badmap_file_path,
+                               segmentation_mode=mode,
+                               extra_states=states,
+                               b_penalty=b_penalty,
+                               verbose=verbose,
+                               allele_reads_tr=args['--allele_reads_tr']
+                               )
+        try:
+            GS.estimate_BAD()
+        except Exception as e:
+            raise e
+        print('Total time: {} s'.format(time.clock() - t))
+    else:
+        badmap_file_path = args['--badmap']
+    if args['--visualize'] or args['visualize']:
+        init_from_snps_collection(snps_collection=snps_collection, BAD_file=badmap_file_path)
