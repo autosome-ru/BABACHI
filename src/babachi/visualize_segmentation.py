@@ -5,7 +5,7 @@ import matplotlib.colorbar as m_colorbar
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
-from babachi.helpers import ChromosomePosition
+from .helpers import ChromosomePosition
 
 sns.set(font_scale=1.2, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
                                                              '#D55E00', '#CC79A7'))
@@ -21,7 +21,7 @@ plt.rcParams['axes.ymargin'] = 0
 plt.rcParams["legend.framealpha"] = 1
 
 
-def init_from_snps_collection(snps_collection, BAD_file, verbose=True):
+def init_from_snps_collection(snps_collection, BAD_file, verbose=True, img_format='svg'):
     BAD_table = pd.read_table(BAD_file)
     file_name = os.path.splitext(os.path.basename(BAD_file))[0]
     out_path = os.path.join(os.path.dirname(BAD_file), '{}_visualization'.format(file_name))
@@ -37,7 +37,7 @@ def init_from_snps_collection(snps_collection, BAD_file, verbose=True):
             continue
         snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
         snps['cov'] = snps['ref_c'] + snps['alt_c']
-        visualize_chromosome(os.path.join(out_path, '{}_{}.svg'.format(file_name, chromosome)),
+        visualize_chromosome(os.path.join(out_path, '{}_{}.{}'.format(file_name, chromosome, img_format)),
                              chromosome, snps,
                              BAD_table[BAD_table['#chr'] == chromosome])
 
