@@ -31,10 +31,10 @@ import numpy as np
 import os.path
 from schema import Schema, And, Use, SchemaError, Const, Or
 import time
-from babachi.helpers import ChromosomePosition, pack, parse_input_file
+from .helpers import ChromosomePosition, pack
 from abc import ABC, abstractmethod
 from docopt import docopt
-from babachi.visualize_segmentation import init_from_snps_collection
+from .visualize_segmentation import init_from_snps_collection
 
 
 class BADSegmentsContainer:
@@ -551,23 +551,26 @@ class ChromosomeSegmentation:  # chromosome
 
 
 class GenomeSegmentator:  # gs
-    def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', extra_states=None,
-                 b_penalty='CAIC', prior=None, verbose=False, allele_reads_tr=0):
+    def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', states=None,
+                 b_penalty='CAIC', prior=None, verbose=False, allele_reads_tr=5):
 
         self.verbose = verbose
         self.mode = segmentation_mode  # 'corrected' or 'binomial'
         self.b_penalty = b_penalty  # boundary penalty mode ('CAIC', ')
         self.allele_reads_tr = allele_reads_tr  # "minimal read count on each allele" snp filter
-        if extra_states is None:
+        if states is None or len(states) == 0:
             self.BAD_list = [1, 2, 3, 4, 5]
         else:
-            self.BAD_list = sorted([1, 2, 3, 4, 5] + extra_states)
+            self.BAD_list = sorted(states)
         if prior is None:
             self.prior = dict(zip(self.BAD_list, [1] * len(self.BAD_list)))
         else:
+            if len(prior) != len(self.BAD_list):
+                raise AssertionError('Length of prior = {} is not equal to number of states = {}'.format(
+                    len(prior), len(self.BAD_list)))
             self.prior = prior
 
-        self.snps_collection = snps_collection  # input file in .vcf format
+        self.snps_collection = snps_collection  # input snp collection
         self.out = out  # output file in .bed format
 
         self.snp_per_chr_tr = 100  # minimal number of snps in chromosome to start segmentation
@@ -608,6 +611,36 @@ class GenomeSegmentator:  # gs
         for segment in segments:
             if segment.BAD != 0 and segment.snps_count > self.min_segment_length:
                 yield segment
+
+
+def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
+    snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
+    chromosomes_order = []
+    for line_number, line in enumerate(opened_file, 1):
+        if line[0] == '#':
+            continue
+        else:
+            parsed_line = line.strip().split('\t')
+            if parsed_line[0] not in ChromosomePosition.chromosomes:
+                print('Invalid chromosome name: {} in line #{}'.format(parsed_line[0], line_number))
+                return False
+            try:
+                if int(parsed_line[1]) <= 0 or int(parsed_line[5]) < 0 or int(parsed_line[6]) < 0:
+                    raise ValueError
+            except ValueError:
+                print('Position, Reference allele read counts, Alternative allele read counts must be'
+                      ' a non-negative integer in line #{}'.format(line_number))
+        ref_read_count = int(parsed_line[5])
+        alt_read_count = int(parsed_line[6])
+        if parsed_line[0] not in chromosomes_order:
+            chromosomes_order.append(parsed_line[0])
+        if ref_read_count < allele_reads_tr or alt_read_count < allele_reads_tr:
+            continue
+
+        snps_collection[parsed_line[0]].append((int(parsed_line[1]), ref_read_count, alt_read_count))
+    if force_sort:
+        chromosomes_order = ChromosomePosition.sorted_chromosomes
+    return snps_collection, chromosomes_order, opened_file.name
 
 
 def segmentation_start():
@@ -652,13 +685,13 @@ def segmentation_start():
         verbose = not args['--quiet']
         mode = 'corrected'
         b_penalty = 'CAIC'
-        states = [4 / 3, 1.5, 2.5, 6]
+        states = [1, 2, 3, 4, 5, 4 / 3, 1.5, 2.5, 6]
         t = time.clock()
         GS = GenomeSegmentator(snps_collection=snps_collection,
                                chromosomes_order=chromosomes_order,
                                out=badmap_file_path,
                                segmentation_mode=mode,
-                               extra_states=states,
+                               states=states,
                                b_penalty=b_penalty,
                                verbose=verbose,
                                allele_reads_tr=args['--allele_reads_tr']
