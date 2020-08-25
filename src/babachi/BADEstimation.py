@@ -501,7 +501,7 @@ class ChromosomeSegmentation:  # chromosome
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
             return
 
-        start_t = time.clock()
+        start_t = time.perf_counter()
         self.adjust_critical_gap()
 
         #  boundary for first snp
@@ -547,7 +547,7 @@ class ChromosomeSegmentation:  # chromosome
                     '[' + ', '.join(map(lambda x: '({:.0f}bp: 0bp)'.format(x) if isinstance(x, (int, float)) else (
                         '({:.0f}bp: {:.0f}bp)'.format(x[0], x[1] - x[0])),
                                         self.segments_container.boundaries_positions)) + ']'))
-            print('{} time: {} s\n\n'.format(self.chromosome, time.clock() - start_t))
+            print('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
 
 
 class GenomeSegmentator:  # gs
@@ -630,6 +630,7 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
             except ValueError:
                 print('Position, Reference allele read counts, Alternative allele read counts must be'
                       ' a non-negative integer in line #{}'.format(line_number))
+                raise
         ref_read_count = int(parsed_line[5])
         alt_read_count = int(parsed_line[6])
         if parsed_line[0] not in chromosomes_order:
@@ -686,7 +687,7 @@ def segmentation_start():
         mode = 'corrected'
         b_penalty = 'CAIC'
         states = [1, 2, 3, 4, 5, 4 / 3, 1.5, 2.5, 6]
-        t = time.clock()
+        t = time.perf_counter()
         GS = GenomeSegmentator(snps_collection=snps_collection,
                                chromosomes_order=chromosomes_order,
                                out=badmap_file_path,
@@ -700,7 +701,7 @@ def segmentation_start():
             GS.estimate_BAD()
         except Exception as e:
             raise e
-        print('Total time: {} s'.format(time.clock() - t))
+        print('Total time: {} s'.format(time.perf_counter() - t))
     else:
         badmap_file_path = args['--badmap']
     if args['--visualize'] or args['visualize']:
