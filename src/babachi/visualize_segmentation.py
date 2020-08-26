@@ -7,21 +7,20 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
 from .helpers import ChromosomePosition
 
-sns.set(font_scale=1.2, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
-                                                             '#D55E00', '#CC79A7'))
-# sns.set_style({"xtick.direction": "in", "ytick.direction": "in"})
-plt.rcParams['font.weight'] = "medium"
-plt.rcParams['axes.labelweight'] = 'medium'
-plt.rcParams['figure.titleweight'] = 'medium'
-plt.rcParams['axes.titleweight'] = 'medium'
-plt.rcParams['figure.figsize'] = 14, 3
-plt.rcParams["legend.framealpha"] = 1
-plt.rcParams['axes.xmargin'] = 0
-plt.rcParams['axes.ymargin'] = 0
-plt.rcParams["legend.framealpha"] = 1
-
 
 def init_from_snps_collection(snps_collection, BAD_file, verbose=True, img_format='svg'):
+    sns.set(font_scale=1.2, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
+                                                                 '#D55E00', '#CC79A7'))
+    plt.rcParams['font.weight'] = "medium"
+    plt.rcParams['axes.labelweight'] = 'medium'
+    plt.rcParams['figure.titleweight'] = 'medium'
+    plt.rcParams['axes.titleweight'] = 'medium'
+    plt.rcParams['figure.figsize'] = 14, 3
+    plt.rcParams["legend.framealpha"] = 1
+    plt.rcParams['axes.xmargin'] = 0
+    plt.rcParams['axes.ymargin'] = 0
+    plt.rcParams["legend.framealpha"] = 1
+
     BAD_table = pd.read_table(BAD_file)
     file_name = os.path.splitext(os.path.basename(BAD_file))[0]
     out_path = os.path.join(os.path.dirname(BAD_file), '{}_visualization'.format(file_name))
