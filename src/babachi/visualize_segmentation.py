@@ -8,7 +8,7 @@ import seaborn as sns
 from .helpers import ChromosomePosition
 
 
-def init_from_snps_collection(snps_collection, BAD_file, verbose=True, img_format='svg'):
+def init_from_snps_collection(snps_collection, BAD_file, verbose=True, img_format='svg', cosmic_file=None, cosmic_line=None):
     sns.set(font_scale=1.2, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
                                                                  '#D55E00', '#CC79A7'))
     plt.rcParams['font.weight'] = "medium"
@@ -27,6 +27,21 @@ def init_from_snps_collection(snps_collection, BAD_file, verbose=True, img_forma
     if not os.path.isdir(out_path):
         os.mkdir(out_path)
 
+    cosmics = {}
+    if cosmic_file is not None and cosmic_line is not None:
+        cosmic = pd.read_table(cosmic_file, low_memory=False)
+        cosmic.columns = ['#sample_name', 'chr', 'startpos', 'endpos', 'minorCN', 'totalCN']
+        for chromosome in ChromosomePosition.chromosomes:
+            chr_cosmic = cosmic.loc[
+                (cosmic['#sample_name'] == cosmic_line) &
+                (cosmic['chr'] == chromosome) &
+                (cosmic['minorCN'] != 0)
+                ].copy()
+            chr_cosmic['chr'] = chr_cosmic['chr']
+            chr_cosmic['startpos'] = chr_cosmic['startpos'].astype(int)
+            chr_cosmic['endpos'] = chr_cosmic['endpos'].astype(int)
+            cosmics[chromosome] = chr_cosmic
+
     column_names = ['pos', 'ref_c', 'alt_c']
     for chromosome in snps_collection.keys():
         if verbose:
@@ -38,10 +53,10 @@ def init_from_snps_collection(snps_collection, BAD_file, verbose=True, img_forma
         snps['cov'] = snps['ref_c'] + snps['alt_c']
         visualize_chromosome(os.path.join(out_path, '{}_{}.{}'.format(file_name, chromosome, img_format)),
                              chromosome, snps,
-                             BAD_table[BAD_table['#chr'] == chromosome])
+                             BAD_table[BAD_table['#chr'] == chromosome], cosmics[chromosome] if cosmics else None)
 
 
-def visualize_chromosome(out_path, chromosome, snps, BAD_segments):
+def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=None):
     if BAD_segments.empty:
         return
     fig, ax = plt.subplots()
@@ -49,7 +64,9 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments):
     plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
 
     BAD_color = '#0072B2CC'
+    COSMIC_color = '#D55E00'
     BAD_lw = 10
+    COSMIC_lw = 4
     y_min = 0.8
     y_max = 6
     delta_y = 0.05
@@ -110,6 +127,42 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments):
                        linewidth=BAD_lw, color=BAD_color,
                        solid_capstyle='butt')
 
+    # cosmic
+    if chr_cosmic is not None and not chr_cosmic.empty:
+        cosmic_bar_colors = []
+        vd = 1 / 500
+        COSMIC_BADs = []
+        cosmic_borders = []
+        last_end = 1
+        for index, (sample_name, chrom, startpos, endpos, minorCN, totalCN) in chr_cosmic.iterrows():
+            if startpos - last_end >= ChromosomePosition.chromosomes[chromosome] * vd * 2:
+                if last_end == 1:
+                    cosmic_borders += [startpos - ChromosomePosition.chromosomes[chromosome] * vd]
+                else:
+                    cosmic_borders += [last_end + ChromosomePosition.chromosomes[chromosome] * vd, startpos - ChromosomePosition.chromosomes[chromosome] * vd]
+                cosmic_bar_colors.append('#AAAAAA')
+                COSMIC_BADs.append(None)
+            else:
+                if last_end != 1:
+                    cosmic_borders += [last_end]
+            last_end = endpos
+            cosmic_bar_colors.append('C2')
+            COSMIC_BADs.append((totalCN - minorCN) / minorCN)
+        if last_end != ChromosomePosition.chromosomes[chromosome] + 1:
+            cosmic_borders += [last_end + ChromosomePosition.chromosomes[chromosome] * vd]
+            cosmic_bar_colors.append('#AAAAAA')
+            COSMIC_BADs.append(None)
+
+        all_cosmic_borders = [1] + cosmic_borders + [ChromosomePosition.chromosomes[chromosome] + 1]
+
+        for i in range(len(all_cosmic_borders) - 1):
+            if COSMIC_BADs[i]:
+                ax.axhline(y=COSMIC_BADs[i],
+                           xmin=all_cosmic_borders[i] / ChromosomePosition.chromosomes[chromosome],
+                           xmax=all_cosmic_borders[i + 1] / ChromosomePosition.chromosomes[chromosome],
+                           linewidth=COSMIC_lw, color=COSMIC_color, snap=False, ms=0, mew=0,
+                           solid_capstyle='butt')
+
     ax.scatter(x=snps['pos'], y=list(snps['AD']), c=snps['cov'], cmap='BuPu', s=2, vmin=10, vmax=30)
     ax.set_xlim(0, ChromosomePosition.chromosomes[chromosome])
     ax.set_ylim(y_min, y_max)
@@ -134,6 +187,8 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments):
     plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
 
     ax.plot([0, 0], [0, 0], color=BAD_color, label='Estimated BAD')
+    if chr_cosmic is not None and not chr_cosmic.empty:
+        ax.plot([0, 0], [0, 0], color=COSMIC_color, label='COSMIC BAD')
     # ax.legend(loc='center left')
 
     ax = fig.add_axes([0.95, 0.16, 0.01, 0.75])
