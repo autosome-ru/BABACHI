@@ -1,6 +1,6 @@
 # BABACHI: Backgroud Allelic Dosage Bayesian Checkpoint Identification
 [![DOI](https://zenodo.org/badge/255952669.svg)](https://zenodo.org/badge/latestdoi/255952669) <br>
-BABACHI is a tool for constant Background Allelic Dosage (BAD) genome regions calling from
+BABACHI is a tool for Background Allelic Dosage (BAD) genomic regions calling from
 non-phased heterozygous SNPs. It is aimed at estimation of BAD on low-coverage sequencing data, where
 the precise estimation of allelic copy numbers is not possible.
 
