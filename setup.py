@@ -4,7 +4,7 @@ import os
 
 version_module = {}
 dir_name = os.path.dirname(__file__)
-with open(os.path.join(dir_name, "src/babachi/version.py")) as fp:
+with open(os.path.join(dir_name, "src", "babachi", "version.py")) as fp:
     exec(fp.read(), version_module)
     __version__ = version_module['__version__']
 

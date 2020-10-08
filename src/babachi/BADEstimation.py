@@ -1,8 +1,8 @@
 """
 
 Usage:
-    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize]
-    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize]
+    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>] [--states <string>]
+    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>]
     babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-q | --quiet] [--allele_reads_tr <int>]
     babachi -h | --help
 
@@ -10,7 +10,9 @@ Arguments:
     <file>     Path to input file in tsv format with columns:
     chr pos ID ref_base alt_base ref_read_count alt_read_count.
     <badmap>   Path to badmap .bed format file
-    <int>      Integer
+    <int>      Non negative integer
+    <float>    Non negative number
+    <string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be > 1
 
 
 Options:
@@ -23,6 +25,8 @@ Options:
     --force-sort                    Do chromosomes need to be sorted
     --visualize                     Perform visualization of SNP-wise AD and BAD for each chromosome.
                                     Will create a directory in output path for the .svg visualizations.
+    --boundary-penalty <float>      Boundary penalty coefficient [default: 4]
+    --states <string>               States string [default: 1,2,3,4,5,1.5]
     --test                          Run segmentation on test file
 """
 
@@ -212,19 +216,14 @@ class Segmentation(ABC):
         Q = np.sort(self.P, axis=0)
         self.L[:, :] = Q[-1, :, :] + np.log1p(np.sum(np.exp(Q[:-2, :, :] - Q[-1, :, :]), axis=0))
 
-    def get_parameter_penalty(self, boundaries, alphabet):
-        k = boundaries * alphabet
+    def get_parameter_penalty(self, boundaries):
         if isinstance(self, AtomicRegionSegmentation):
             N = self.total_snps_count
         else:
             N = self.sub_chromosome.unique_snp_positions
 
         if self.sub_chromosome.gs.b_penalty == 'CAIC':
-            return -1 / 2 * k * (np.log(N) + 1)
-        elif self.sub_chromosome.gs.b_penalty == 'SQRT':
-            return -1 / 2 * k * (np.sqrt(N) + 1)
-        elif self.sub_chromosome.gs.b_penalty == 'CBRT':
-            return -1 / 2 * k * (N ** (1 / 3) + 1)
+            return -1 / 2 * boundaries * (np.log(N) + 1) * self.sub_chromosome.gs.b_penalty
         else:
             raise ValueError(self.sub_chromosome.b_penalty)
 
@@ -275,8 +274,7 @@ class AtomicRegionSegmentation(Segmentation):
             current_optimal = self.score[i]
 
             for k in range(i):
-                parameter_penalty = self.get_parameter_penalty(self.best_boundaries_count[k] + 1, len(
-                    self.sub_chromosome.gs.BAD_list))
+                parameter_penalty = self.get_parameter_penalty(self.best_boundaries_count[k] + 1)
 
                 likelihood = self.score[k] + self.L[k + 1, i]
                 candidate = likelihood + parameter_penalty
@@ -365,8 +363,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
 
             for k in range(i):
 
-                parameter_penalty = self.get_parameter_penalty(self.best_boundaries_count[k] + 1,
-                                                               len(self.gs.BAD_list))
+                parameter_penalty = self.get_parameter_penalty(self.best_boundaries_count[k] + 1)
 
                 likelihood = self.score[k] + self.L[k + 1, i]
                 candidate = likelihood + parameter_penalty
@@ -644,6 +641,20 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
     return snps_collection, chromosomes_order, opened_file.name
 
 
+def convert_frac_to_float(string):
+    if string.find('/') != -1:
+        string = string.split('/')
+        try:
+
+            divider = int(string[1])
+
+def check_states(string):
+    if not string:
+        return False
+    string = string.strip().split(',')
+    map(convert_frac_to_float, string)
+
+
 def segmentation_start():
 
     args = docopt(__doc__)
@@ -657,6 +668,9 @@ def segmentation_start():
             Use(lambda x: parse_input_file(x, int(args['--allele_reads_tr']), args["--force-sort"]),
                 error='Wrong input file format')
         ),
+        '--boundary-penalty': Use(
+            lambda x: float(x), error='Boundary penalty coefficient should be non negative integer'
+        ),
         '--badmap': Or(
             Const(lambda x: x is None and not args['visualize']),
             And(
@@ -666,6 +680,9 @@ def segmentation_start():
         '--output': And(
             Const(os.path.exists, error='Output path should exist'),
             Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
+        ),
+        '--states': Use(
+          check_states
         ),
         '--allele_reads_tr': Use(int, error='Allelic reads threshold must be integer'),
         str: bool
@@ -685,7 +702,6 @@ def segmentation_start():
 
         verbose = not args['--quiet']
         mode = 'corrected'
-        b_penalty = 'CAIC'
         states = [1, 2, 3, 4, 5, 4 / 3, 1.5, 2.5, 6]
         t = time.perf_counter()
         GS = GenomeSegmentator(snps_collection=snps_collection,
@@ -693,7 +709,7 @@ def segmentation_start():
                                out=badmap_file_path,
                                segmentation_mode=mode,
                                states=states,
-                               b_penalty=b_penalty,
+                               b_penalty=args['--boundary-penalty'],
                                verbose=verbose,
                                allele_reads_tr=args['--allele_reads_tr']
                                )
