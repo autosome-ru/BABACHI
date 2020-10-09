@@ -12,7 +12,7 @@ Arguments:
     <badmap>   Path to badmap .bed format file
     <int>      Non negative integer
     <float>    Non negative number
-    <string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be > 1
+    <string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
 
 
 Options:
@@ -31,6 +31,8 @@ Options:
 """
 
 import math
+import re
+
 import numpy as np
 import os.path
 from schema import Schema, And, Use, SchemaError, Const, Or
@@ -642,21 +644,42 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
 
 
 def convert_frac_to_float(string):
-    if string.find('/') != -1:
-        string = string.split('/')
+    if re.match(r"^[1-9]+[0-9]*/[1-9]+[0-9]*$", string):
+        num, denom = string.split('/')
+        if int(denom) <= 0:
+            return False
+        else:
+            value = int(num) / int(denom)
+    elif re.match(r"^[1-9]+[0-9]*\.[1-9]+[0-9]*$", string):
         try:
+            value = float(string)
+        except ValueError:
+            return False
+    elif re.match(r"^[1-9]+[0-9]*$", string):
+        try:
+            value = int(string)
+        except ValueError:
+            return False
+    else:
+        return False
+    if value >= 1:
+        return value
+    else:
+        return False
 
-            divider = int(string[1])
 
 def check_states(string):
     if not string:
         return False
     string = string.strip().split(',')
-    map(convert_frac_to_float, string)
+    ret_val = list(map(convert_frac_to_float, string))
+    if not all(ret_val):
+        return False
+    else:
+        return ret_val
 
 
 def segmentation_start():
-
     args = docopt(__doc__)
     if args['--test']:
         args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests/test.tsv')
@@ -682,7 +705,8 @@ def segmentation_start():
             Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
         ),
         '--states': Use(
-          check_states
+            check_states, error='''Incorrect value for --states.
+            Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
         ),
         '--allele_reads_tr': Use(int, error='Allelic reads threshold must be integer'),
         str: bool
@@ -702,13 +726,12 @@ def segmentation_start():
 
         verbose = not args['--quiet']
         mode = 'corrected'
-        states = [1, 2, 3, 4, 5, 4 / 3, 1.5, 2.5, 6]
         t = time.perf_counter()
         GS = GenomeSegmentator(snps_collection=snps_collection,
                                chromosomes_order=chromosomes_order,
                                out=badmap_file_path,
                                segmentation_mode=mode,
-                               states=states,
+                               states=args['--states'],
                                b_penalty=args['--boundary-penalty'],
                                verbose=verbose,
                                allele_reads_tr=args['--allele_reads_tr']
