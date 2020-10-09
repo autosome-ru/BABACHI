@@ -224,10 +224,7 @@ class Segmentation(ABC):
         else:
             N = self.sub_chromosome.unique_snp_positions
 
-        if self.sub_chromosome.gs.b_penalty == 'CAIC':
-            return -1 / 2 * boundaries * (np.log(N) + 1) * self.sub_chromosome.gs.b_penalty
-        else:
-            raise ValueError(self.sub_chromosome.b_penalty)
+        return -1 / 2 * boundaries * (np.log(N) + 1) * self.sub_chromosome.gs.b_penalty
 
     def initialize_boundaries_arrays(self):
         self.score = [0] * (self.candidates_count + 1)
@@ -551,11 +548,11 @@ class ChromosomeSegmentation:  # chromosome
 
 class GenomeSegmentator:  # gs
     def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', states=None,
-                 b_penalty='CAIC', prior=None, verbose=False, allele_reads_tr=5):
+                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5):
 
         self.verbose = verbose
         self.mode = segmentation_mode  # 'corrected' or 'binomial'
-        self.b_penalty = b_penalty  # boundary penalty mode ('CAIC', ')
+        self.b_penalty = b_penalty  # boundary penalty coefficient k ('CAIC' * k)
         self.allele_reads_tr = allele_reads_tr  # "minimal read count on each allele" snp filter
         if states is None or len(states) == 0:
             self.BAD_list = [1, 2, 3, 4, 5]
