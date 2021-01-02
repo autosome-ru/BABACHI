@@ -7,12 +7,12 @@ Usage:
     babachi -h | --help
 
 Arguments:
-    <file>     Path to input file in tsv format with columns:
-    chr pos ID ref_base alt_base ref_read_count alt_read_count.
-    <badmap>   Path to badmap .bed format file
-    <int>      Non negative integer
-    <float>    Non negative number
-    <string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
+    <file>            Path to input file in tsv format with columns:
+                      chr pos ID ref_base alt_base ref_read_count alt_read_count.
+    <badmap>          Path to badmap .bed format file
+    <int>             Non negative integer
+    <float>           Non negative number
+    <states_string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
 
 
 Options:
@@ -25,8 +25,8 @@ Options:
     --force-sort                    Do chromosomes need to be sorted
     --visualize                     Perform visualization of SNP-wise AD and BAD for each chromosome.
                                     Will create a directory in output path for the .svg visualizations.
-    --boundary-penalty <float>      Boundary penalty coefficient [default: 4]
-    --states <string>               States string [default: 1,2,3,4,5,1.5]
+    --boundary-penalty <float>      Boundary penalty coefficient [default: 9]
+    --states <states_string>        States string [default: 1,2,3,4,5,6,1.5,2.5]
     --test                          Run segmentation on test file
 """
 
