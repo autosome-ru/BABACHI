@@ -44,12 +44,14 @@ from .visualize_segmentation import init_from_snps_collection
 
 
 class BADSegmentsContainer:
-    allowed_fields = ['boundaries_positions', 'BAD_estimations', 'likelihoods', 'snps_counts', 'covers']
+    allowed_fields = ['boundaries_positions', 'BAD_estimations', 'likelihoods', 'snps_counts', 'covers',
+                      'snp_id_counts']
 
     def __init__(self, **kwargs):
         self.BAD_estimations = []  # estimated BADs for split segments
         self.likelihoods = []  # likelihoods of split segments for each BAD
         self.snps_counts = []  # number of snps in segments
+        self.snp_id_counts = []  # numer of unique snp positions in segments
         self.covers = []  # sums of covers for each segment
         self.boundaries_positions = []  # boundary positions between snps at x1 and x2:
         # (x1+x2)/2 for x2-x1<=CRITICAL_GAP, (x1, x2) else
@@ -88,6 +90,7 @@ class BADSegmentsContainer:
                         self.likelihoods[counter],
                         self.snps_counts[counter],
                         self.covers[counter],
+                        self.snp_id_counts[counter],
                     )
                     current_position = boundary[0] + 1
                     yield BADSegment(
@@ -96,6 +99,7 @@ class BADSegmentsContainer:
                         boundary[1],
                         0,
                         [0] * len(chromosome_segmentation.gs.BAD_list),
+                        0,
                         0,
                         0,
                     )
@@ -109,12 +113,13 @@ class BADSegmentsContainer:
                         self.likelihoods[counter],
                         self.snps_counts[counter],
                         self.covers[counter],
+                        self.snp_id_counts[counter],
                     )
                     current_position = math.floor(boundary) + 1
 
 
 class BADSegment:
-    def __init__(self, chr, start, end, BAD, likelihoods, snps_count, total_cover):
+    def __init__(self, chr, start, end, BAD, likelihoods, snps_count, total_cover, snp_id_count):
         self.chr = chr
         self.start = start
         self.end = end
@@ -122,9 +127,11 @@ class BADSegment:
         self.likelihoods = likelihoods
         self.snps_count = snps_count
         self.total_cover = total_cover
+        self.snp_id_count = snp_id_count
 
     def __repr__(self):
-        return pack([self.chr, self.start, self.end, self.BAD, *self.likelihoods, self.snps_count, self.total_cover])
+        return pack([self.chr, self.start, self.end, self.BAD, *self.likelihoods, self.snps_count, self.total_cover,
+                     self.snp_id_count])
 
 
 class Segmentation(ABC):
@@ -305,6 +312,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.total_snps_count = len(self.allele_read_counts_array)
         self.total_cover = sum(ref_count + alt_count for ref_count, alt_count in self.allele_read_counts_array)
         self.snps_positions = snps_positions
+        assert len(self.snps_positions) == self.total_snps_count
         self.unique_snp_positions = len(set(self.snps_positions))
         self.start_snp_index = 0
         self.end_snp_index = (self.total_snps_count - 1) - 1  # index from 0, and #boundaries = #snps - 1
@@ -385,6 +393,11 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         cumulative_counts = [0] + [x + 1 for x in self.boundaries_indexes] + [self.last_snp_number + 1]
         self.segments_container.snps_counts = [cumulative_counts[i + 1] - cumulative_counts[i] for i in
                                                range(len(cumulative_counts) - 1)]
+
+        self.segments_container.snp_id_counts = [
+            len(set(self.snps_positions[cumulative_counts[i]: cumulative_counts[i + 1]])) for i in
+            range(len(cumulative_counts) - 1)
+        ]
         self.segments_container.covers = [
             sum(ref_count + alt_count for ref_count, alt_count in
                 self.allele_read_counts_array[cumulative_counts[i]:cumulative_counts[i + 1]]) for i in
@@ -512,13 +525,15 @@ class ChromosomeSegmentation:  # chromosome
 
         for part, (st, ed) in enumerate(self.get_sub_chromosomes_slices(), 1):
             # check
-            if len(set(self.snps_positions[st: ed])) <= self.gs.min_segment_length:
+            unique_positions = len(set(self.snps_positions[st: ed]))
+            if unique_positions <= self.gs.min_segment_length:
                 self.segments_container += BADSegmentsContainer(
                     boundaries_positions=[],
                     BAD_estimations=[0],
                     likelihoods=[[0] * len(self.gs.BAD_list)],
                     snps_counts=[ed - st],
                     covers=[0],
+                    snp_id_counts=[unique_positions]
                 )
             else:
                 sub_chromosome = SubChromosomeSegmentation(self.gs, self, self.allele_read_counts_array[st: ed],
@@ -534,12 +549,14 @@ class ChromosomeSegmentation:  # chromosome
             self.segments_container.boundaries_positions.append(self.length)
         else:
             self.segments_container.boundaries_positions.append((self.snps_positions[-1] + 1, self.length))
+
         if self.gs.verbose:
             print(
-                '\nEstimated BADs: {}\nSNP counts: {}\nCritical gap: {:.0f}bp'
+                '\nEstimated BADs: {}\nSNP counts: {}\nSNP IDs counts: {}\nCritical gap: {:.0f}bp'
                 '\nBoundaries positions (location: deletion length): {}'.format(
                     '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
-                    self.segments_container.snps_counts, self.critical_gap_factor * self.effective_length,
+                    self.segments_container.snps_counts, self.segments_container.snp_id_counts,
+                    self.critical_gap_factor * self.effective_length,
                     '[' + ', '.join(map(lambda x: '({:.0f}bp: 0bp)'.format(x) if isinstance(x, (int, float)) else (
                         '({:.0f}bp: {:.0f}bp)'.format(x[0], x[1] - x[0])),
                                         self.segments_container.boundaries_positions)) + ']'))
