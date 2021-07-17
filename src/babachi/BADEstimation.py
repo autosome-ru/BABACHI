@@ -1,9 +1,9 @@
 """
 
 Usage:
-    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>] [--states <string>]
-    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>]
-    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-q | --quiet] [--allele_reads_tr <int>]
+    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>] [--min-seg-snps <int>] [--min-seg-bp <int>] [--states <string>]
+    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>] [--min-seg-snps <int>] [--min-seg-bp <int>] [--states <string>]
+    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-q | --quiet] [--allele-reads-tr <int>]
     babachi -h | --help
 
 Arguments:
@@ -20,13 +20,15 @@ Options:
     -q, --quiet                     Less log messages during work time.
     -b <badmap>, --badmap <badmap>  Input badmap file
     -O <path>, --output <path>      Output directory or file path. [default: ./]
-    --allele_reads_tr <int>         Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
+    --allele-reads-tr <int>         Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                     alt_read_count >= x. [default: 5]
     --force-sort                    Do chromosomes need to be sorted
     --visualize                     Perform visualization of SNP-wise AD and BAD for each chromosome.
                                     Will create a directory in output path for the .svg visualizations.
     --boundary-penalty <float>      Boundary penalty coefficient [default: 9]
     --states <states_string>        States string [default: 1,2,3,4,5,6,1.5,2.5]
+    --min-seg-snps <int>            Only allow segments containing this or more SNPs [default: 3]
+    --min-seg-bp <int>              Only allow segments containing this or more base pairs [default: 0]
     --test                          Run segmentation on test file
 """
 
@@ -130,8 +132,8 @@ class BADSegment:
         self.snp_id_count = snp_id_count
 
     def __repr__(self):
-        return pack([self.chr, self.start, self.end, self.BAD, *self.likelihoods, self.snps_count, self.total_cover,
-                     self.snp_id_count])
+        return pack([self.chr, self.start, self.end, self.BAD, self.snps_count, self.snp_id_count, self.total_cover,
+                     *self.likelihoods])
 
 
 class Segmentation(ABC):
@@ -165,23 +167,23 @@ class Segmentation(ABC):
         denominator_multiplier = 1
         for k in range(trim_cover):
             result += current_multiplier * np.power(p, N - k) * np.power(1 - p, k) / denominator_multiplier
-            current_multiplier *= (N - k)
+            current_multiplier *= int(N - k)
             denominator_multiplier *= k + 1
 
         return -result
 
-    def log_likelihood(self, N, X, i):
+    def log_likelihood(self, N, X, BAD):
         """
         allele_reads_tr <= X <= N/2
         """
-        p = 1.0 / (1.0 + i)
+        p = 1.0 / (1.0 + BAD)
         log_norm = np.log1p(self.get_norm(p, N, self.sub_chromosome.gs.allele_reads_tr) +
                             self.get_norm(1 - p, N, self.sub_chromosome.gs.allele_reads_tr))
         if (self.sub_chromosome.gs.mode == 'corrected' and N == 2 * X) or self.sub_chromosome.gs.mode == 'binomial':
-            return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[i]) - log_norm
+            return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm
         elif self.sub_chromosome.gs.mode == 'corrected':
-            return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[i]) - log_norm \
-                   + np.log1p(i ** (2 * X - N))
+            return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm \
+                   + np.log1p(float(BAD) ** (2 * X - N))
 
     def get_P(self, first, last):
         if last - first == 0:
@@ -282,31 +284,38 @@ class AtomicRegionSegmentation(Segmentation):
             kf = -1
             current_optimal = self.score[i]
 
-            if len(set(self.snps_positions[
-                       0: self.candidate_numbers[i] + 1 if i != self.candidates_count else -1
-                       ])) < self.sub_chromosome.gs.z:
-                current_optimal -= 100000000
-            else:
+            check_optimal = True
+            if self.sub_chromosome.gs.min_seg_snps or self.sub_chromosome.gs.min_seg_bp:
+                piece_positions = self.snps_positions[0: self.candidate_numbers[i] + 1] \
+                    if i != self.candidates_count else self.snps_positions
+                if (self.sub_chromosome.gs.min_seg_snps and len(np.unique(piece_positions)) < self.sub_chromosome.gs.min_seg_snps) or \
+                        (self.sub_chromosome.gs.min_seg_bp and piece_positions[-1] - piece_positions[0] < self.sub_chromosome.gs.min_seg_bp):
+                    self.score[i] -= 100000000
+                    check_optimal = False
+            if check_optimal:
                 for k in range(i):
                     parameter_penalty = self.get_parameter_penalty(self.best_boundaries_count[k] + 1)
 
-                    if len(set(self.snps_positions[
-                               self.candidate_numbers[k] + 1: self.candidate_numbers[i] + 1 if i != self.candidates_count else -1
-                               ])) < self.sub_chromosome.gs.z:
-                        parameter_penalty -= 100000000
+                    z_penalty = 0
+                    if self.sub_chromosome.gs.min_seg_snps or self.sub_chromosome.gs.min_seg_bp:
+                        piece_positions = self.snps_positions[self.candidate_numbers[k] + 1: self.candidate_numbers[i] + 1]\
+                            if i != self.candidates_count else self.snps_positions[self.candidate_numbers[k] + 1:]
+                        if len(np.unique(piece_positions)) < self.sub_chromosome.gs.min_seg_snps or \
+                                piece_positions[-1] - piece_positions[0] < self.sub_chromosome.gs.min_seg_bp:
+                            z_penalty = -100000000
 
                     likelihood = self.score[k] + self.L[k + 1, i]
-                    candidate = likelihood + parameter_penalty
+                    candidate = likelihood + parameter_penalty + z_penalty
                     if candidate > current_optimal:
                         current_optimal = candidate
-                        self.score[i] = likelihood
+                        self.score[i] = likelihood + z_penalty
                         kf = k
             if kf != -1:
                 self.has_boundary[kf] = True
             for j in range(kf + 1, i):
                 self.has_boundary[j] = False
 
-            self.best_boundaries_count[i] = self.has_boundary.count(True)
+            self.best_boundaries_count[i] = sum(self.has_boundary)
 
         self.boundaries_indexes = [self.candidate_numbers[i] for i in range(self.candidates_count) if
                                    self.has_boundary[i]]
@@ -323,11 +332,10 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.allele_read_counts_array = allele_read_counts_array
 
         self.total_snps_count = len(self.allele_read_counts_array)
-        self.total_cover = sum(ref_count + alt_count for ref_count, alt_count in self.allele_read_counts_array)
+        self.total_cover = self.allele_read_counts_array.sum()
         self.snps_positions = snps_positions
         assert len(self.snps_positions) == self.total_snps_count
-        self.unique_snp_positions = len(set(self.snps_positions))
-        self.start_snp_index = 0
+        self.unique_snp_positions = len(np.unique(self.snps_positions))
         self.end_snp_index = (self.total_snps_count - 1) - 1  # index from 0, and #boundaries = #snps - 1
         self.candidate_numbers = [i for i in range(self.total_snps_count - 1) if
                                   self.snps_positions[i] != self.snps_positions[i + 1]]
@@ -359,19 +367,12 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.end_snp_index = self.candidates_count - 1
 
     def construct_initial_likelihood_matrices(self):
-        current_snp_index = -1
-
+        vector_likelihood = np.vectorize(self.log_likelihood, excluded=['BAD'])
         S = np.zeros((len(self.gs.BAD_list), self.total_snps_count), dtype=self.dtype)
-        for j in range(0, self.total_snps_count):
-
-            ref_c, alt_c = self.allele_read_counts_array[self.start_snp_index + j]
-            current_snp_index += 1
-            N = ref_c + alt_c
-            X = min(ref_c, alt_c)
-
-            for i in range(len(self.gs.BAD_list)):
-                assert (self.gs.BAD_list[i] > 0)
-                S[i, current_snp_index] = self.log_likelihood(N, X, self.gs.BAD_list[i])
+        X = self.allele_read_counts_array.min(axis=1)
+        N = self.allele_read_counts_array.sum(axis=1)
+        for i in range(len(self.gs.BAD_list)):
+            S[i, :] = vector_likelihood(N, X, BAD=self.gs.BAD_list[i])
         self.P_initial = S
 
     def find_optimal_boundaries(self):
@@ -381,33 +382,38 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
             last_boundary_index = -1
             current_optimal = self.score[i]
 
-            if len(set(self.snps_positions[
-                       0: self.candidate_numbers[i] + 1 if i != self.candidates_count else -1
-                       ])) < self.sub_chromosome.gs.z:
-                current_optimal -= 100000000
-            else:
+            check_optimal = True
+            if self.sub_chromosome.gs.min_seg_snps or self.sub_chromosome.gs.min_seg_bp:
+                piece_positions = self.snps_positions[0: self.candidate_numbers[i] + 1] \
+                    if i != self.candidates_count else self.snps_positions
+                if (self.sub_chromosome.gs.min_seg_snps and len(np.unique(piece_positions)) < self.sub_chromosome.gs.min_seg_snps) or \
+                        (self.sub_chromosome.gs.min_seg_bp and piece_positions[-1] - piece_positions[0] < self.sub_chromosome.gs.min_seg_bp):
+                    self.score[i] -= 100000000
+                    check_optimal = False
+            if check_optimal:
                 for k in range(i):
-
                     parameter_penalty = self.get_parameter_penalty(self.best_boundaries_count[k] + 1)
 
-                    if len(set(self.snps_positions[
-                               self.candidate_numbers[k] + 1: self.candidate_numbers[i] + 1 if i != self.candidates_count else -1
-                               ])) < self.sub_chromosome.gs.z:
-                        parameter_penalty -= 100000000
+                    z_penalty = 0
+                    if self.gs.min_seg_snps or self.gs.min_seg_bp:
+                        piece_positions = self.snps_positions[self.candidate_numbers[k] + 1: self.candidate_numbers[i] + 1]\
+                            if i != self.candidates_count else self.snps_positions[self.candidate_numbers[k] + 1:]
+                        if len(np.unique(piece_positions)) < self.sub_chromosome.gs.min_seg_snps or \
+                                piece_positions[-1] - piece_positions[0] < self.sub_chromosome.gs.min_seg_bp:
+                            z_penalty = -100000000
 
                     likelihood = self.score[k] + self.L[k + 1, i]
-                    candidate = likelihood + parameter_penalty
+                    candidate = likelihood + parameter_penalty + z_penalty
                     if candidate > current_optimal:
                         current_optimal = candidate
-                        self.score[i] = likelihood
+                        self.score[i] = likelihood + z_penalty
                         last_boundary_index = k
             if last_boundary_index != -1:
                 self.has_boundary[last_boundary_index] = True
             for j in range(last_boundary_index + 1, i):
                 self.has_boundary[j] = False
 
-            self.best_boundaries_count[i] = [int(x) for x in self.has_boundary].count(1)
-            assert ([int(x) for x in self.has_boundary].count(1) == self.best_boundaries_count[i])
+            self.best_boundaries_count[i] = sum(self.has_boundary)
 
         self.boundaries_indexes = [self.candidate_numbers[i] for i in range(self.candidates_count) if
                                    self.has_boundary[i]]
@@ -481,16 +487,16 @@ class ChromosomeSegmentation:  # chromosome
         self.chromosome = chromosome  # name
         self.length = length  # length, bp
 
-        (self.allele_read_counts_array, self.snps_positions) = self.unpack_snp_collection()  # unpack
+        self.allele_read_counts_array, self.snps_positions = self.unpack_snp_collection()  # unpack
         self.total_snps_count = len(self.allele_read_counts_array)
         self.segments_container = BADSegmentsContainer()
         if self.total_snps_count == 0:
             return
-        self.total_read_coverage = sum(ref_count + alt_count for ref_count, alt_count in self.allele_read_counts_array)
+        self.total_read_coverage = self.allele_read_counts_array.sum()
         self.critical_gap_factor = 1 - 10 ** (- 1 / np.sqrt(self.total_snps_count))
         self.effective_length = self.snps_positions[-1] - self.snps_positions[0]
 
-    def unpack_snp_collection(self):
+    def unpack_snp_collection(self):  # TODO: redundant reshaping
         try:
             positions, snps = zip(
                 *((pos, (ref_count, alt_count)) for pos, ref_count, alt_count in
@@ -498,7 +504,7 @@ class ChromosomeSegmentation:  # chromosome
             )
         except ValueError:
             positions, snps = [], []
-        return snps, positions
+        return np.array(snps, dtype=np.int_), np.array(positions, dtype=np.int_)
 
     def adjust_critical_gap(self):
         condition = True
@@ -580,7 +586,7 @@ class ChromosomeSegmentation:  # chromosome
                     '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
                     self.segments_container.snps_counts, self.segments_container.snp_id_counts,
                     self.critical_gap_factor * self.effective_length,
-                    '[' + ', '.join(map(lambda x: '({:.0f}bp: 0bp)'.format(x) if isinstance(x, (int, float)) else (
+                    '[' + ', '.join(map(lambda x: '({:.0f}bp: 0bp)'.format(x) if isinstance(x, (int, float, np.int_, np.float_)) else (
                         '({:.0f}bp: {:.0f}bp)'.format(x[0], x[1] - x[0])),
                                         self.segments_container.boundaries_positions)) + ']'))
             print('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
@@ -588,12 +594,13 @@ class ChromosomeSegmentation:  # chromosome
 
 class GenomeSegmentator:  # gs
     def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', states=None,
-                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5):
+                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0):
 
         self.verbose = verbose
         self.mode = segmentation_mode  # 'corrected' or 'binomial'
         self.b_penalty = b_penalty  # boundary penalty coefficient k ('CAIC' * k)
         self.allele_reads_tr = allele_reads_tr  # "minimal read count on each allele" snp filter
+
         if states is None or len(states) == 0:
             self.BAD_list = [1, 2, 3, 4, 5]
         else:
@@ -613,7 +620,8 @@ class GenomeSegmentator:  # gs
         self.atomic_region_length = 600  # length of an atomic region in snps
         self.overlap = 300  # length of regions overlap in snps
         self.min_subchr_length = 3  # minimal subchromosome length in snps
-        self.z = 10  # minimal BAD segment length
+        self.min_seg_snps = min_seg_snps  # minimal BAD segment length in SNPs
+        self.min_seg_bp = min_seg_bp  # minimal BAD segment length in bp
         self.chromosomes_order = chromosomes_order  # ['chr1', 'chr2', ...]
 
         self.chr_segmentations = []  # list of ChromosomeSegmentation instances
@@ -631,8 +639,9 @@ class GenomeSegmentator:  # gs
     def estimate_BAD(self):
         with open(self.out, 'w') as outfile:
             outfile.write(
-                pack(['#chr', 'start', 'end', 'BAD'] + ['Q{:.2f}'.format(BAD) for BAD in self.BAD_list] +
-                     ['SNP_count', 'sum_cover']))
+                pack(['#chr', 'start', 'end', 'BAD', 'SNP_count', 'SNP_ID_count', 'sum_cover'] + ['Q{:.2f}'.format(BAD)
+                                                                                                  for BAD in
+                                                                                                  self.BAD_list]))
             for j in range(len(self.chr_segmentations)):
                 chromosome = self.chr_segmentations[j]
                 chromosome.estimate_chr()
@@ -726,11 +735,20 @@ def segmentation_start():
         '<file>': And(
             Const(os.path.exists, error='Input file should exist'),
             Use(open, error='Input file should be readable'),
-            Use(lambda x: parse_input_file(x, int(args['--allele_reads_tr']), args["--force-sort"]),
+            Use(lambda x: parse_input_file(x, int(args['--allele-reads-tr']), args["--force-sort"]),
                 error='Wrong input file format')
         ),
-        '--boundary-penalty': Use(
-            lambda x: float(x), error='Boundary penalty coefficient should be non negative integer'
+        '--boundary-penalty': And(
+            Use(float),
+            Const(lambda x: x >= 0), error='Boundary penalty coefficient should be non negative number'
+        ),
+        '--min-seg-snps': And(
+            Use(int),
+            Const(lambda x: x >= 0), error='Min SNPs in segment parameter coefficient should be non negative integer'
+        ),
+        '--min-seg-bp': And(
+            Use(int),
+            Const(lambda x: x >= 0), error='Min segment length coefficient should be non negative integer'
         ),
         '--badmap': Or(
             Const(lambda x: x is None and not args['visualize']),
@@ -738,15 +756,24 @@ def segmentation_start():
                 Const(os.path.exists, error='Badmap file should exist'),
                 Const(lambda x: os.access(x, os.R_OK), error='No read permission for badmap file')
             )),
-        '--output': And(
-            Const(os.path.exists, error='Output path should exist'),
-            Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
+        '--output': Or(
+            And(
+                Const(os.path.exists),
+                Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
+            ),
+            And(
+                Const(lambda x: not os.path.exists(x)),
+                Const(lambda x: os.access(os.path.dirname(x), os.W_OK), error='No write permissions')
+            ),
         ),
         '--states': Use(
             check_states, error='''Incorrect value for --states.
             Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
         ),
-        '--allele_reads_tr': Use(int, error='Allelic reads threshold must be integer'),
+        '--allele-reads-tr': And(
+            Use(int),
+            Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'
+        ),
         str: bool
     })
     try:
@@ -772,7 +799,9 @@ def segmentation_start():
                                states=args['--states'],
                                b_penalty=args['--boundary-penalty'],
                                verbose=verbose,
-                               allele_reads_tr=args['--allele_reads_tr']
+                               allele_reads_tr=args['--allele-reads-tr'],
+                               min_seg_snps=args['--min-seg-snps'],
+                               min_seg_bp=args['--min-seg-bp']
                                )
         try:
             GS.estimate_BAD()
