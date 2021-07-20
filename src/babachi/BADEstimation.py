@@ -183,11 +183,14 @@ class Segmentation(ABC):
         p = 1.0 / (1.0 + BAD)
         log_norm = np.log1p(self.get_norm(p, N, self.sub_chromosome.gs.allele_reads_tr) +
                             self.get_norm(1 - p, N, self.sub_chromosome.gs.allele_reads_tr))
-        if (self.sub_chromosome.gs.mode == 'corrected' and N == 2 * X) or self.sub_chromosome.gs.mode == 'binomial':
+        if (self.sub_chromosome.gs.individual_likelihood_mode in ('corrected', 'byesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm
-        elif self.sub_chromosome.gs.mode == 'corrected':
+        elif self.sub_chromosome.gs.individual_likelihood_mode == 'corrected':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm \
                    + np.log1p(float(BAD) ** (2 * X - N))
+        elif self.sub_chromosome.gs.individual_likelihood_mode == 'bayesian':
+            return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm \
+                   - np.log1p(float(BAD) ** (2 * X - N)) + np.log1p(float(BAD) ** (4 * X - 2 * N))
 
     def get_P(self, first, last):
         if last - first == 0:
@@ -223,8 +226,11 @@ class Segmentation(ABC):
         self.P = (B[:, np.newaxis, :] - np.insert(B, 0, 0, axis=0)).transpose()[:, :-1, :]
 
     def modify_L(self):
-        Q = np.sort(self.P, axis=0)
-        self.L[:, :] = Q[-1, :, :] + np.log1p(np.sum(np.exp(Q[:-2, :, :] - Q[-1, :, :]), axis=0))
+        if self.sub_chromosome.gs.scoring_mode == 'marginal':
+            Q = np.sort(self.P, axis=0)
+            self.L[:, :] = Q[-1, :, :] + np.log1p(np.sum(np.exp(Q[:-2, :, :] - Q[-1, :, :]), axis=0))
+        elif self.sub_chromosome.gs.scoring_mode == 'maximum':
+            self.L[:, :] = self.P.max(axis=0)
 
     def get_parameter_penalty(self, boundaries):
         if isinstance(self, AtomicRegionSegmentation):
@@ -470,12 +476,16 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         if self.total_snps_count == 0:
             return
 
+        if self.gs.verbose:
+            print('Constructing initial SNP-wise likelihoods...')
         self.construct_initial_likelihood_matrices()
         atomic_regions_limits = self.split_into_overlapping_regions(self.candidates_count + 1,
                                                                     self.gs.atomic_region_length,
                                                                     self.gs.overlap)
         boundary_set = set()
         counter = 0
+        if self.gs.verbose:
+            print('Segmenting atomic regions:')
         for first, last in atomic_regions_limits:
             counter += 1
             if self.gs.verbose:
@@ -491,7 +501,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.candidate_numbers = sorted(list(boundary_set))
         self.candidates_count = len(self.candidate_numbers)
         if self.gs.verbose:
-            print('Unique SNPs positions in subchromosome: {}'.format(self.unique_snp_positions))
+            print('Unique SNPs positions in subchromosome {}: {}'.format(self.index_in_chromosome, self.unique_snp_positions))
 
         self.estimate()
         self.estimate_BAD()
@@ -615,7 +625,8 @@ class GenomeSegmentator:  # gs
                  b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0):
 
         self.verbose = verbose
-        self.mode = segmentation_mode  # 'corrected' or 'binomial'
+        self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
+        self.scoring_mode = 'maximum'  # marginal or maximum
         self.b_penalty = b_penalty  # boundary penalty coefficient k ('CAIC' * k)
         self.allele_reads_tr = allele_reads_tr  # "minimal read count on each allele" snp filter
 
