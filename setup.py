@@ -33,7 +33,8 @@ setup(
         'contextlib2>=0.5.5',
         'pandas>=1.0.4',
         'matplotlib>=3.2.1',
-        'seaborn>=0.10.1'
+        'seaborn>=0.10.1',
+        'numba>=0.53.1'
     ],
     extras_require={
         'dev': ['wheel', 'twine', 'setuptools_scm'],

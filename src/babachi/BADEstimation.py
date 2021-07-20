@@ -36,7 +36,9 @@ import math
 import re
 
 import numpy as np
+from numba import njit
 import os.path
+
 from schema import Schema, And, Use, SchemaError, Const, Or
 import time
 from .helpers import ChromosomePosition, pack
@@ -145,6 +147,8 @@ class Segmentation(ABC):
         self.P = None  # segment-wise log-likelihoods for each BAD
         self.L = None  # segment-wise marginal log-likelihoods
 
+        self.inf_score = 100000000
+
         self.boundaries_indexes = None
         self.boundary_numbers = None
         self.snps_positions = []
@@ -215,13 +219,8 @@ class Segmentation(ABC):
 
     def modify_P(self):
         self.C = np.cumsum(self.S, axis=1)
-        for j in range(self.candidates_count + 1):
-            if j == 0:
-                subtract = 0
-            else:
-                subtract = self.C[:, j - 1]
-            for k in range(j, self.candidates_count + 1):
-                self.P[:, j, k] = self.C[:, k] - subtract
+        B = self.C.transpose()
+        self.P = (B[:, np.newaxis, :] - np.insert(B, 0, 0, axis=0)).transpose()[:, :-1, :]
 
     def modify_L(self):
         Q = np.sort(self.P, axis=0)
@@ -248,7 +247,22 @@ class Segmentation(ABC):
         self.construct_likelihood_matrices()
         self.modify_P()
         self.modify_L()
-        self.find_optimal_boundaries()
+        if self.sub_chromosome.gs.fast and isinstance(self, AtomicRegionSegmentation):
+            self.boundaries_indexes = fast_find_optimal_borders(
+                self.candidates_count,
+                self.L,
+                self.sub_chromosome.gs.min_seg_snps,
+                self.sub_chromosome.gs.min_seg_bp,
+                self.snps_positions,
+                np.array(self.candidate_numbers, dtype=np.int_),
+                self.first_snp_number,
+                self.inf_score,
+                self.total_snps_count,
+                self.sub_chromosome.gs.b_penalty
+            )
+        else:
+            self.initialize_boundaries_arrays()
+            self.find_optimal_boundaries()
 
 
 class AtomicRegionSegmentation(Segmentation):
@@ -267,15 +281,12 @@ class AtomicRegionSegmentation(Segmentation):
         else:
             self.first_snp_number = sub_chromosome.candidate_numbers[start - 1] + 1
         self.snps_positions = sub_chromosome.snps_positions[self.first_snp_number: self.last_snp_number + 1]
-        self.total_cover = sum(
-            ref_count + alt_count for ref_count, alt_count in sub_chromosome.allele_read_counts_array[
-                                                              self.first_snp_number:
-                                                              self.last_snp_number + 1]
-        )
+        self.total_cover = sub_chromosome.allele_read_counts_array[
+                           self.first_snp_number:
+                           self.last_snp_number + 1
+                           ].sum()
         self.candidate_numbers = sub_chromosome.candidate_numbers[start:end]
         self.candidates_count = end - start
-
-        self.initialize_boundaries_arrays()
 
     def find_optimal_boundaries(self):
         for i in range(self.candidates_count + 1):
@@ -286,11 +297,13 @@ class AtomicRegionSegmentation(Segmentation):
 
             check_optimal = True
             if self.sub_chromosome.gs.min_seg_snps or self.sub_chromosome.gs.min_seg_bp:
-                piece_positions = self.snps_positions[0: self.candidate_numbers[i] + 1] \
+                piece_positions = self.snps_positions[0: self.candidate_numbers[i] + 1 - self.first_snp_number] \
                     if i != self.candidates_count else self.snps_positions
-                if (self.sub_chromosome.gs.min_seg_snps and len(np.unique(piece_positions)) < self.sub_chromosome.gs.min_seg_snps) or \
-                        (self.sub_chromosome.gs.min_seg_bp and piece_positions[-1] - piece_positions[0] < self.sub_chromosome.gs.min_seg_bp):
-                    self.score[i] -= 100000000
+                if (self.sub_chromosome.gs.min_seg_snps and len(
+                        np.unique(piece_positions)) < self.sub_chromosome.gs.min_seg_snps) or \
+                        (self.sub_chromosome.gs.min_seg_bp and piece_positions[-1] - piece_positions[
+                            0] < self.sub_chromosome.gs.min_seg_bp):
+                    self.score[i] -= self.inf_score
                     check_optimal = False
             if check_optimal:
                 for k in range(i):
@@ -298,11 +311,14 @@ class AtomicRegionSegmentation(Segmentation):
 
                     z_penalty = 0
                     if self.sub_chromosome.gs.min_seg_snps or self.sub_chromosome.gs.min_seg_bp:
-                        piece_positions = self.snps_positions[self.candidate_numbers[k] + 1: self.candidate_numbers[i] + 1]\
-                            if i != self.candidates_count else self.snps_positions[self.candidate_numbers[k] + 1:]
+                        piece_positions = self.snps_positions[
+                                          self.candidate_numbers[k] + 1 - self.first_snp_number: self.candidate_numbers[
+                                                                                                     i] + 1 - self.first_snp_number] \
+                            if i != self.candidates_count else self.snps_positions[
+                                                               self.candidate_numbers[k] + 1 - self.first_snp_number:]
                         if len(np.unique(piece_positions)) < self.sub_chromosome.gs.min_seg_snps or \
                                 piece_positions[-1] - piece_positions[0] < self.sub_chromosome.gs.min_seg_bp:
-                            z_penalty = -100000000
+                            z_penalty = -self.inf_score
 
                     likelihood = self.score[k] + self.L[k + 1, i]
                     candidate = likelihood + parameter_penalty + z_penalty
@@ -386,9 +402,11 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
             if self.sub_chromosome.gs.min_seg_snps or self.sub_chromosome.gs.min_seg_bp:
                 piece_positions = self.snps_positions[0: self.candidate_numbers[i] + 1] \
                     if i != self.candidates_count else self.snps_positions
-                if (self.sub_chromosome.gs.min_seg_snps and len(np.unique(piece_positions)) < self.sub_chromosome.gs.min_seg_snps) or \
-                        (self.sub_chromosome.gs.min_seg_bp and piece_positions[-1] - piece_positions[0] < self.sub_chromosome.gs.min_seg_bp):
-                    self.score[i] -= 100000000
+                if (self.sub_chromosome.gs.min_seg_snps and len(
+                        np.unique(piece_positions)) < self.sub_chromosome.gs.min_seg_snps) or \
+                        (self.sub_chromosome.gs.min_seg_bp and piece_positions[-1] - piece_positions[
+                            0] < self.sub_chromosome.gs.min_seg_bp):
+                    self.score[i] -= self.inf_score
                     check_optimal = False
             if check_optimal:
                 for k in range(i):
@@ -396,11 +414,12 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
 
                     z_penalty = 0
                     if self.gs.min_seg_snps or self.gs.min_seg_bp:
-                        piece_positions = self.snps_positions[self.candidate_numbers[k] + 1: self.candidate_numbers[i] + 1]\
+                        piece_positions = self.snps_positions[
+                                          self.candidate_numbers[k] + 1: self.candidate_numbers[i] + 1] \
                             if i != self.candidates_count else self.snps_positions[self.candidate_numbers[k] + 1:]
                         if len(np.unique(piece_positions)) < self.sub_chromosome.gs.min_seg_snps or \
                                 piece_positions[-1] - piece_positions[0] < self.sub_chromosome.gs.min_seg_bp:
-                            z_penalty = -100000000
+                            z_penalty = -self.inf_score
 
                     likelihood = self.score[k] + self.L[k + 1, i]
                     candidate = likelihood + parameter_penalty + z_penalty
@@ -473,8 +492,6 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.candidates_count = len(self.candidate_numbers)
         if self.gs.verbose:
             print('Unique SNPs positions in subchromosome: {}'.format(self.unique_snp_positions))
-
-        self.initialize_boundaries_arrays()
 
         self.estimate()
         self.estimate_BAD()
@@ -554,7 +571,7 @@ class ChromosomeSegmentation:  # chromosome
 
         for part, (st, ed) in enumerate(self.get_sub_chromosomes_slices(), 1):
             # check
-            unique_positions = len(set(self.snps_positions[st: ed]))
+            unique_positions = len(np.unique(self.snps_positions[st: ed]))
             if unique_positions < self.gs.min_subchr_length:
                 self.segments_container += BADSegmentsContainer(
                     boundaries_positions=[],
@@ -586,9 +603,10 @@ class ChromosomeSegmentation:  # chromosome
                     '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
                     self.segments_container.snps_counts, self.segments_container.snp_id_counts,
                     self.critical_gap_factor * self.effective_length,
-                    '[' + ', '.join(map(lambda x: '({:.0f}bp: 0bp)'.format(x) if isinstance(x, (int, float, np.int_, np.float_)) else (
-                        '({:.0f}bp: {:.0f}bp)'.format(x[0], x[1] - x[0])),
-                                        self.segments_container.boundaries_positions)) + ']'))
+                    '[' + ', '.join(map(
+                        lambda x: '({:.0f}bp: 0bp)'.format(x) if isinstance(x, (int, float, np.int_, np.float_)) else (
+                            '({:.0f}bp: {:.0f}bp)'.format(x[0], x[1] - x[0])),
+                        self.segments_container.boundaries_positions)) + ']'))
             print('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
 
 
@@ -620,6 +638,7 @@ class GenomeSegmentator:  # gs
         self.atomic_region_length = 600  # length of an atomic region in snps
         self.overlap = 300  # length of regions overlap in snps
         self.min_subchr_length = 3  # minimal subchromosome length in snps
+        self.fast = True  # use numba to optimize execution speed
         self.min_seg_snps = min_seg_snps  # minimal BAD segment length in SNPs
         self.min_seg_bp = min_seg_bp  # minimal BAD segment length in bp
         self.chromosomes_order = chromosomes_order  # ['chr1', 'chr2', ...]
@@ -724,6 +743,76 @@ def check_states(string):
         return False
     else:
         return ret_val
+
+
+@njit
+def fast_find_optimal_borders(
+        candidates_count,
+        L,
+        min_seg_snps,
+        min_seg_bp,
+        snps_positions,
+        candidate_numbers,
+        first_snp_number,
+        inf_score,
+        total_snps_count,
+        b_penalty
+):
+    score = np.zeros(candidates_count + 1)
+    has_boundary = np.zeros(candidates_count)
+    best_boundaries_count = np.zeros(candidates_count + 1)
+    if min_seg_snps or min_seg_bp:
+        unique_positions = np.zeros(candidates_count + 1)
+        current_index = 0
+        last_pos = snps_positions[0]
+        for i in range(1, candidates_count + 1):
+            if snps_positions[i] != last_pos:
+                current_index += 1
+            unique_positions[i] = current_index
+    for i in range(candidates_count + 1):
+        score[i] = L[0, i]
+
+        kf = -1
+        current_optimal = score[i]
+
+        check_optimal = True
+        if min_seg_snps or min_seg_bp:
+            last_index = candidate_numbers[i] + 1 - first_snp_number if i != candidates_count else -1
+            first_index = 0
+            piece_positions = snps_positions[0: candidate_numbers[i] + 1 - first_snp_number] \
+                if i != candidates_count else snps_positions
+            if (min_seg_snps and unique_positions[last_index] - unique_positions[first_index] < min_seg_snps) or \
+                    (min_seg_bp and piece_positions[last_index] - piece_positions[first_index] < min_seg_bp):
+                score[i] -= inf_score
+                check_optimal = False
+        if check_optimal:
+            for k in range(i):
+                parameter_penalty = -1 / 2 * (best_boundaries_count[k] + 1) * (np.log(total_snps_count) + 1) * b_penalty
+
+                z_penalty = 0
+                if min_seg_snps or min_seg_bp:
+                    last_index = candidate_numbers[i] + 1 - first_snp_number if i != candidates_count else -1
+                    first_index = candidate_numbers[k] + 1 - first_snp_number
+                    if (min_seg_snps and unique_positions[last_index] - unique_positions[first_index] < min_seg_snps) or \
+                            (min_seg_bp and piece_positions[last_index] - piece_positions[first_index] < min_seg_bp):
+                        z_penalty = -inf_score
+
+                likelihood = score[k] + L[k + 1, i]
+                candidate = likelihood + parameter_penalty + z_penalty
+                if candidate > current_optimal:
+                    current_optimal = candidate
+                    score[i] = likelihood + z_penalty
+                    kf = k
+        if kf != -1:
+            has_boundary[kf] = True
+        for j in range(kf + 1, i):
+            has_boundary[j] = False
+
+        best_boundaries_count[i] = has_boundary.sum()
+
+    boundaries_indexes = [candidate_numbers[i] for i in range(candidates_count) if
+                          has_boundary[i]]
+    return boundaries_indexes
 
 
 def segmentation_start():
