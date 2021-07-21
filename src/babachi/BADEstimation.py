@@ -582,7 +582,7 @@ class ChromosomeSegmentation:  # chromosome
         for part, (st, ed) in enumerate(self.get_sub_chromosomes_slices(), 1):
             # check
             unique_positions = len(np.unique(self.snps_positions[st: ed]))
-            if unique_positions < self.gs.min_subchr_length:
+            if unique_positions < self.gs.min_segment_length:
                 self.segments_container += BADSegmentsContainer(
                     boundaries_positions=[],
                     BAD_estimations=[0],
@@ -609,24 +609,24 @@ class ChromosomeSegmentation:  # chromosome
         if self.gs.verbose:
             print(
                 '\nEstimated BADs: {}\nSNP counts: {}\nSNP IDs counts: {}\nCritical gap: {:.0f}bp'
-                '\nBoundaries positions (location: deletion length): {}'.format(
+                '\nBoundaries positions (location[deletion length (if any)]): {}'.format(
                     '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
                     self.segments_container.snps_counts, self.segments_container.snp_id_counts,
                     self.critical_gap_factor * self.effective_length,
                     '[' + ', '.join(map(
-                        lambda x: '({:.0f}bp: 0bp)'.format(x) if isinstance(x, (int, float, np.int_, np.float_)) else (
-                            '({:.0f}bp: {:.0f}bp)'.format(x[0], x[1] - x[0])),
+                        lambda x: '{:.2f}Mbp'.format(x/1000000) if isinstance(x, (int, float, np.int_, np.float_)) else (
+                            '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0]/1000000, (x[1] - x[0])/1000000)),
                         self.segments_container.boundaries_positions)) + ']'))
             print('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
 
 
 class GenomeSegmentator:  # gs
-    def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', states=None,
+    def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', scoring_mode='marginal', states=None,
                  b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0):
 
         self.verbose = verbose
         self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
-        self.scoring_mode = 'maximum'  # marginal or maximum
+        self.scoring_mode = scoring_mode  # marginal or maximum
         self.b_penalty = b_penalty  # boundary penalty coefficient k ('CAIC' * k)
         self.allele_reads_tr = allele_reads_tr  # "minimal read count on each allele" snp filter
 
@@ -648,7 +648,7 @@ class GenomeSegmentator:  # gs
         self.snp_per_chr_tr = 100  # minimal number of snps in chromosome to start segmentation
         self.atomic_region_length = 600  # length of an atomic region in snps
         self.overlap = 300  # length of regions overlap in snps
-        self.min_subchr_length = 3  # minimal subchromosome length in snps
+        self.min_segment_length = 3  # minimal subchromosome length in snps
         self.fast = True  # use numba to optimize execution speed
         self.min_seg_snps = min_seg_snps  # minimal BAD segment length in SNPs
         self.min_seg_bp = min_seg_bp  # minimal BAD segment length in bp
@@ -685,7 +685,7 @@ class GenomeSegmentator:  # gs
 
     def filter_segments(self, segments):
         for segment in segments:
-            if segment.BAD != 0 and segment.snps_count >= self.min_subchr_length:
+            if segment.BAD != 0 and segment.snps_count >= self.min_segment_length:
                 yield segment
 
 
@@ -756,7 +756,7 @@ def check_states(string):
         return ret_val
 
 
-@njit
+@njit(cache=True)
 def fast_find_optimal_borders(
         candidates_count,
         L,
