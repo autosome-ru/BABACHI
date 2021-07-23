@@ -1,8 +1,8 @@
 """
 
 Usage:
-    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>] [--min-seg-snps <int>] [--min-seg-bp <int>] [--states <string>]
-    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>] [--min-seg-snps <int>] [--min-seg-bp <int>] [--states <string>]
+    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>] [--states <string>]
+    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>] [--states <string>]
     babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-q | --quiet] [--allele-reads-tr <int>]
     babachi -h | --help
 
@@ -16,20 +16,21 @@ Arguments:
 
 
 Options:
-    -h, --help                      Show help.
-    -q, --quiet                     Less log messages during work time.
-    -b <badmap>, --badmap <badmap>  Input badmap file
-    -O <path>, --output <path>      Output directory or file path. [default: ./]
-    --allele-reads-tr <int>         Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
-                                    alt_read_count >= x. [default: 5]
-    --force-sort                    Do chromosomes need to be sorted
-    --visualize                     Perform visualization of SNP-wise AD and BAD for each chromosome.
-                                    Will create a directory in output path for the .svg visualizations.
-    --boundary-penalty <float>      Boundary penalty coefficient [default: 9]
-    --states <states_string>        States string [default: 1,2,3,4,5,6,1.5,2.5]
-    --min-seg-snps <int>            Only allow segments containing this or more SNPs [default: 3]
-    --min-seg-bp <int>              Only allow segments containing this or more base pairs [default: 0]
-    --test                          Run segmentation on test file
+    -h, --help                             Show help.
+    -q, --quiet                            Less log messages during work time.
+    -b <badmap>, --badmap <badmap>         Input badmap file
+    -O <path>, --output <path>             Output directory or file path. [default: ./]
+    --allele-reads-tr <int>                Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
+                                           alt_read_count >= x. [default: 5]
+    --force-sort                           Do chromosomes need to be sorted
+    --visualize                            Perform visualization of SNP-wise AD and BAD for each chromosome.
+                                           Will create a directory in output path for the .svg visualizations.
+    -B <float>, --boundary-penalty <float> Boundary penalty coefficient [default: 9]
+    --states <states_string>               States string [default: 1,2,3,4,5,6,1.5,2.5]
+    -Z <int>, --min-seg-snps <int>         Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
+    -R <int>, --min-seg-bp <int>           Only allow segments containing R or more base pairs [default: 0]
+    -P <int>, --post-segment-filter <int>  Remove segments with less than P unique SNPs (IDs/positions) from output
+    --test                                 Run segmentation on test file
 """
 
 import math
@@ -147,7 +148,7 @@ class Segmentation(ABC):
         self.P = None  # segment-wise log-likelihoods for each BAD
         self.L = None  # segment-wise marginal log-likelihoods
 
-        self.inf_score = 100000000
+        self.inf_score = 100000000  # Log-likelihood penalty for Z and R
 
         self.boundaries_indexes = None
         self.boundary_numbers = None
@@ -160,7 +161,7 @@ class Segmentation(ABC):
         self.candidates_count = None
         self.sub_chromosome = None
         self.score = None  # score[i] = best log-likelihood among all segmentations of snps[0,i]
-        self.has_boundary = None  # bool boundaries, len=total_snps_count.
+        self.has_boundary_cache = None  # bool boundaries, len=total_snps_count * (total_snps_count + 1).
         self.best_boundaries_count = None  # best_boundaries_count[i] = number of boundaries
         # before ith snp in best segmentation
 
@@ -242,7 +243,7 @@ class Segmentation(ABC):
 
     def initialize_boundaries_arrays(self):
         self.score = [0] * (self.candidates_count + 1)
-        self.has_boundary = [False] * self.candidates_count
+        self.has_boundary_cache = [[False] * self.candidates_count] * (self.candidates_count + 1)
         self.best_boundaries_count = [0] * (self.candidates_count + 1)
 
     @abstractmethod
@@ -262,7 +263,7 @@ class Segmentation(ABC):
                 self.snps_positions,
                 np.array(self.candidate_numbers, dtype=np.int_),
                 self.first_snp_number,
-                self.inf_score,
+                np.float64(self.inf_score),
                 self.total_snps_count,
                 self.sub_chromosome.gs.b_penalty
             )
@@ -333,14 +334,16 @@ class AtomicRegionSegmentation(Segmentation):
                         self.score[i] = likelihood + z_penalty
                         kf = k
             if kf != -1:
-                self.has_boundary[kf] = True
-            for j in range(kf + 1, i):
-                self.has_boundary[j] = False
+                for j in range(0, kf):
+                    self.has_boundary_cache[i][j] = self.has_boundary_cache[kf][j]
+                self.has_boundary_cache[i][kf] = 1
+                for j in range(kf + 1, i):
+                    self.has_boundary_cache[i][j] = 0
 
-            self.best_boundaries_count[i] = sum(self.has_boundary)
+            self.best_boundaries_count[i] = sum(self.has_boundary_cache[i])
 
-        self.boundaries_indexes = [self.candidate_numbers[i] for i in range(self.candidates_count) if
-                                   self.has_boundary[i]]
+        self.boundaries_indexes = [self.candidate_numbers[j] for j in range(self.candidates_count) if
+                                  self.has_boundary_cache[-1][j]]
 
 
 class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
@@ -398,6 +401,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.P_initial = S
 
     def find_optimal_boundaries(self):
+        print('{} "SNPs" on the second iteration'.format(self.candidates_count + 1))
         for i in range(self.candidates_count + 1):
             self.score[i] = self.L[0, i]
 
@@ -434,15 +438,18 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
                         self.score[i] = likelihood + z_penalty
                         last_boundary_index = k
             if last_boundary_index != -1:
-                self.has_boundary[last_boundary_index] = True
-            for j in range(last_boundary_index + 1, i):
-                self.has_boundary[j] = False
+                for j in range(0, last_boundary_index):
+                    self.has_boundary_cache[i][j] = self.has_boundary_cache[last_boundary_index][j]
+                self.has_boundary_cache[i][last_boundary_index] = 1
+                for j in range(last_boundary_index + 1, i):
+                    self.has_boundary_cache[i][j] = 0
 
-            self.best_boundaries_count[i] = sum(self.has_boundary)
+            self.best_boundaries_count[i] = sum(self.has_boundary_cache[i])
 
-        self.boundaries_indexes = [self.candidate_numbers[i] for i in range(self.candidates_count) if
-                                   self.has_boundary[i]]
-        self.boundary_numbers = [-1] + [i for i in range(self.candidates_count) if self.has_boundary[i]] + [
+        self.boundaries_indexes = [self.candidate_numbers[j] for j in range(self.candidates_count) if
+                                   self.has_boundary_cache[-1][j]]
+        print([j for j in range(self.candidates_count) if self.has_boundary_cache[-1][j]])
+        self.boundary_numbers = [-1] + [j for j in range(self.candidates_count) if self.has_boundary_cache[-1][j]] + [
             self.candidates_count]
         cumulative_counts = [0] + [x + 1 for x in self.boundaries_indexes] + [self.last_snp_number + 1]
         self.segments_container.snps_counts = [cumulative_counts[i + 1] - cumulative_counts[i] for i in
@@ -457,8 +464,8 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
                 self.allele_read_counts_array[cumulative_counts[i]:cumulative_counts[i + 1]]) for i in
             range(len(cumulative_counts) - 1)]
 
-        for i in range(len(self.has_boundary)):
-            if self.has_boundary[i]:
+        for i in range(len(self.has_boundary_cache[-1])):
+            if self.has_boundary_cache[-1][i]:
                 self.segments_container.boundaries_positions.append(
                     (self.snps_positions[self.candidate_numbers[i]] + self.snps_positions[
                         self.candidate_numbers[i] + 1]) / 2)
@@ -622,7 +629,7 @@ class ChromosomeSegmentation:  # chromosome
 
 class GenomeSegmentator:  # gs
     def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', scoring_mode='marginal', states=None,
-                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0):
+                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0, post_seg_filter=None):
 
         self.verbose = verbose
         self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
@@ -685,8 +692,12 @@ class GenomeSegmentator:  # gs
 
     def filter_segments(self, segments):
         for segment in segments:
-            if segment.BAD != 0:  # and segment.snps_count >= self.min_segment_length:
-                yield segment
+            if self.post_seg_filter is None:
+                if segment.BAD != 0:
+                    yield segment
+            else:
+                if segment.BAD != 0 and segment.snp_id_count >= self.min_segment_length:
+                    yield segment
 
 
 def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
@@ -769,15 +780,14 @@ def fast_find_optimal_borders(
         total_snps_count,
         b_penalty
 ):
-    score = np.zeros(candidates_count + 1)
-    has_boundary = np.zeros(candidates_count)
-    best_boundaries_count = np.zeros(candidates_count + 1)
-    if min_seg_snps or min_seg_bp:
+    score = np.zeros(candidates_count + 1, dtype=np.float64)
+    best_boundaries_count = np.zeros(candidates_count + 1, dtype=np.int_)
+    has_boundary_cache = np.zeros((candidates_count + 1, candidates_count), dtype=np.bool_)
+    if min_seg_snps:
         unique_positions = np.zeros(candidates_count + 1)
         current_index = 0
-        last_pos = snps_positions[0]
         for i in range(1, candidates_count + 1):
-            if snps_positions[i] != last_pos:
+            if snps_positions[i] != snps_positions[i - 1]:
                 current_index += 1
             unique_positions[i] = current_index
     for i in range(candidates_count + 1):
@@ -790,10 +800,8 @@ def fast_find_optimal_borders(
         if min_seg_snps or min_seg_bp:
             last_index = candidate_numbers[i] + 1 - first_snp_number if i != candidates_count else -1
             first_index = 0
-            piece_positions = snps_positions[0: candidate_numbers[i] + 1 - first_snp_number] \
-                if i != candidates_count else snps_positions
             if (min_seg_snps and unique_positions[last_index] - unique_positions[first_index] < min_seg_snps) or \
-                    (min_seg_bp and piece_positions[last_index] - piece_positions[first_index] < min_seg_bp):
+                    (min_seg_bp and snps_positions[last_index] - snps_positions[first_index] < min_seg_bp):
                 score[i] -= inf_score
                 check_optimal = False
         if check_optimal:
@@ -805,7 +813,7 @@ def fast_find_optimal_borders(
                     last_index = candidate_numbers[i] + 1 - first_snp_number if i != candidates_count else -1
                     first_index = candidate_numbers[k] + 1 - first_snp_number
                     if (min_seg_snps and unique_positions[last_index] - unique_positions[first_index] < min_seg_snps) or \
-                            (min_seg_bp and piece_positions[last_index] - piece_positions[first_index] < min_seg_bp):
+                            (min_seg_bp and snps_positions[last_index] - snps_positions[first_index] < min_seg_bp):
                         z_penalty = -inf_score
 
                 likelihood = score[k] + L[k + 1, i]
@@ -815,14 +823,16 @@ def fast_find_optimal_borders(
                     score[i] = likelihood + z_penalty
                     kf = k
         if kf != -1:
-            has_boundary[kf] = True
-        for j in range(kf + 1, i):
-            has_boundary[j] = False
+            for j in range(0, kf):
+                has_boundary_cache[i, j] = has_boundary_cache[kf, j]
+            has_boundary_cache[i, kf] = 1
+            for j in range(kf + 1, i):
+                has_boundary_cache[i, j] = 0
 
-        best_boundaries_count[i] = has_boundary.sum()
+        best_boundaries_count[i] = has_boundary_cache[i, :].sum()
 
-    boundaries_indexes = [candidate_numbers[i] for i in range(candidates_count) if
-                          has_boundary[i]]
+    boundaries_indexes = [candidate_numbers[j] for j in range(candidates_count) if
+                          has_boundary_cache[-1, j]]
     return boundaries_indexes
 
 
@@ -874,6 +884,10 @@ def segmentation_start():
             Use(int),
             Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'
         ),
+        '--post-segment-filter': And(
+            Use(int),
+            Const(lambda x: x >= 0), error='Segments length filter (in SNPs) must be a non negative integer'
+        ),
         str: bool
     })
     try:
@@ -901,7 +915,8 @@ def segmentation_start():
                                verbose=verbose,
                                allele_reads_tr=args['--allele-reads-tr'],
                                min_seg_snps=args['--min-seg-snps'],
-                               min_seg_bp=args['--min-seg-bp']
+                               min_seg_bp=args['--min-seg-bp'],
+                               post_seg_filter=args['--post-segment-filter'],
                                )
         try:
             GS.estimate_BAD()
