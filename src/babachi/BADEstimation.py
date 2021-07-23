@@ -29,7 +29,7 @@ Options:
     --states <states_string>               States string [default: 1,2,3,4,5,6,1.5,2.5]
     -Z <int>, --min-seg-snps <int>         Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
     -R <int>, --min-seg-bp <int>           Only allow segments containing R or more base pairs [default: 0]
-    -P <int>, --post-segment-filter <int>  Remove segments with less than P unique SNPs (IDs/positions) from output
+    -P <int>, --post-segment-filter <int>  Remove segments with less than P unique SNPs (IDs/positions) from output [default: 0]
     --test                                 Run segmentation on test file
 """
 
@@ -629,13 +629,14 @@ class ChromosomeSegmentation:  # chromosome
 
 class GenomeSegmentator:  # gs
     def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', scoring_mode='marginal', states=None,
-                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0, post_seg_filter=None):
+                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0, post_seg_filter=0):
 
         self.verbose = verbose
         self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
         self.scoring_mode = scoring_mode  # marginal or maximum
         self.b_penalty = b_penalty  # boundary penalty coefficient k ('CAIC' * k)
         self.allele_reads_tr = allele_reads_tr  # "minimal read count on each allele" snp filter
+        self.post_seg_filter = post_seg_filter  # min number of SNPs in the segment to be included in the output
 
         if states is None or len(states) == 0:
             self.BAD_list = [1, 2, 3, 4, 5]
@@ -692,7 +693,7 @@ class GenomeSegmentator:  # gs
 
     def filter_segments(self, segments):
         for segment in segments:
-            if self.post_seg_filter is None:
+            if self.post_seg_filter:
                 if segment.BAD != 0:
                     yield segment
             else:
