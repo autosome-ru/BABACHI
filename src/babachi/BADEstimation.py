@@ -693,11 +693,11 @@ class GenomeSegmentator:  # gs
 
     def filter_segments(self, segments):
         for segment in segments:
-            if self.post_seg_filter:
+            if not self.post_seg_filter:
                 if segment.BAD != 0:
                     yield segment
             else:
-                if segment.BAD != 0 and segment.snp_id_count >= self.min_segment_length:
+                if segment.BAD != 0 and segment.snp_id_count >= self.post_seg_filter:
                     yield segment
 
 
