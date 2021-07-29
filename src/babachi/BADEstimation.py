@@ -1,9 +1,8 @@
 """
 
 Usage:
-    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>] [--states <string>]
-    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>] [--states <string>]
-    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-q | --quiet] [--allele-reads-tr <int>]
+    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [-B <float> |--boundary-penalty <float>] [--states <string>] [-Z <int> |--min-seg-snps <int>] [-R <int> |--min-seg-bp <int>] [-P <int> |--post-segment-filter <int>] [-A <int> |--atomic-region-size <int>] [-C <int> |--chr-min-snps <int>] [-S <int> |--subchr-filter <int>]
+    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [-B <float> |--boundary-penalty <float>] [--states <string>] [-Z <int> |--min-seg-snps <int>] [-R <int> |--min-seg-bp <int>] [-P <int> |--post-segment-filter <int>] [-A <int> |--atomic-region-size <int>] [-C <int> |--chr-min-snps <int>] [-S <int> |--subchr-filter <int>]    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-q | --quiet] [--allele-reads-tr <int>]
     babachi -h | --help
 
 Arguments:
@@ -16,21 +15,24 @@ Arguments:
 
 
 Options:
-    -h, --help                             Show help.
-    -q, --quiet                            Less log messages during work time.
-    -b <badmap>, --badmap <badmap>         Input badmap file
-    -O <path>, --output <path>             Output directory or file path. [default: ./]
-    --allele-reads-tr <int>                Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
-                                           alt_read_count >= x. [default: 5]
-    --force-sort                           Do chromosomes need to be sorted
-    --visualize                            Perform visualization of SNP-wise AD and BAD for each chromosome.
-                                           Will create a directory in output path for the .svg visualizations.
-    -B <float>, --boundary-penalty <float> Boundary penalty coefficient [default: 9]
-    --states <states_string>               States string [default: 1,2,3,4,5,6,1.5,2.5]
-    -Z <int>, --min-seg-snps <int>         Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
-    -R <int>, --min-seg-bp <int>           Only allow segments containing R or more base pairs [default: 0]
-    -P <int>, --post-segment-filter <int>  Remove segments with less than P unique SNPs (IDs/positions) from output [default: 0]
-    --test                                 Run segmentation on test file
+    -h, --help                              Show help.
+    -q, --quiet                             Less log messages during work time.
+    -b <badmap>, --badmap <badmap>          Input badmap file
+    -O <path>, --output <path>              Output directory or file path. [default: ./]
+    --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
+                                            alt_read_count >= x. [default: 5]
+    --force-sort                            Do chromosomes need to be sorted
+    --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
+                                            Will create a directory in output path for the .svg visualizations.
+    -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
+    --states <states_string>                States string [default: 1,2,3,4,5,6]
+    -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
+    -R <int>, --min-seg-bp <int>            Only allow segments containing R or more base pairs [default: 1000]
+    -P <int>, --post-segment-filter <int>   Remove segments with less than P unique SNPs (IDs/positions) from output [default: 0]
+    -A <int>, --atomic-region-size <int>    Atomic region size in SNPs [default: 600]
+    -C <int>, --chr-min-snps <int>          Minimum number of SNPs on a chromosome to start segmentation [default: 100]
+    -S <int>, --subchr-filter <int>         Exclude subchromosomes with less than C unique SNPs  [default: 3]
+    --test                                  Run segmentation on test file
 """
 
 import math
@@ -589,7 +591,7 @@ class ChromosomeSegmentation:  # chromosome
         for part, (st, ed) in enumerate(self.get_sub_chromosomes_slices(), 1):
             # check
             unique_positions = len(np.unique(self.snps_positions[st: ed]))
-            if unique_positions < self.gs.min_segment_length:
+            if unique_positions < self.gs.min_subchr_length:
                 self.segments_container += BADSegmentsContainer(
                     boundaries_positions=[],
                     BAD_estimations=[0],
@@ -629,7 +631,8 @@ class ChromosomeSegmentation:  # chromosome
 
 class GenomeSegmentator:  # gs
     def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', scoring_mode='marginal', states=None,
-                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0, post_seg_filter=0):
+                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0, post_seg_filter=0,
+                 atomic_region_size=600, chr_filter=100, subchr_filter=3):
 
         self.verbose = verbose
         self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
@@ -653,10 +656,10 @@ class GenomeSegmentator:  # gs
         self.snps_collection = snps_collection  # input snp collection
         self.out = out  # output file in .bed format
 
-        self.snp_per_chr_tr = 100  # minimal number of snps in chromosome to start segmentation
-        self.atomic_region_length = 600  # length of an atomic region in snps
-        self.overlap = 300  # length of regions overlap in snps
-        self.min_segment_length = 3  # minimal subchromosome length in snps
+        self.snp_per_chr_tr = chr_filter  # minimal number of snps in chromosome to start segmentation
+        self.atomic_region_length = atomic_region_size  # length of an atomic region in snps
+        self.overlap = atomic_region_size // 2  # length of regions overlap in snps
+        self.min_subchr_length = subchr_filter  # minimal subchromosome length in snps
         self.fast = True  # use numba to optimize execution speed
         self.min_seg_snps = min_seg_snps  # minimal BAD segment length in SNPs
         self.min_seg_bp = min_seg_bp  # minimal BAD segment length in bp
@@ -874,7 +877,8 @@ def segmentation_start():
             ),
             And(
                 Const(lambda x: not os.path.exists(x)),
-                Const(lambda x: os.access(os.path.dirname(x), os.W_OK), error='No write permissions')
+                Const(lambda x: os.access(os.path.dirname(x) if os.path.dirname(x) != '' else '.', os.W_OK),
+                      error='No write permissions')
             ),
         ),
         '--states': Use(
@@ -888,6 +892,18 @@ def segmentation_start():
         '--post-segment-filter': And(
             Use(int),
             Const(lambda x: x >= 0), error='Segments length filter (in SNPs) must be a non negative integer'
+        ),
+        '--subchr-filter': And(
+            Use(int),
+            Const(lambda x: x >= 0), error='Subchromosome post filter (in SNPs) must be a non negative integer'
+        ),
+        '--chr-min-snps': And(
+            Use(int),
+            Const(lambda x: x >= 0), error='Subchromosome pre filter (in SNPs) must be a non negative integer'
+        ),
+        '--atomic-region-size': And(
+            Use(int),
+            Const(lambda x: x >= 200), error='Atomic region size (in SNPs) must be a non negative integer'
         ),
         str: bool
     })
@@ -918,6 +934,9 @@ def segmentation_start():
                                min_seg_snps=args['--min-seg-snps'],
                                min_seg_bp=args['--min-seg-bp'],
                                post_seg_filter=args['--post-segment-filter'],
+                               atomic_region_size=args['--atomic-region-size'],
+                               chr_filter=args['--chr-min-snps'],
+                               subchr_filter=args['--subchr-filter']
                                )
         try:
             GS.estimate_BAD()
