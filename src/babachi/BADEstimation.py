@@ -245,7 +245,7 @@ class Segmentation(ABC):
 
     def initialize_boundaries_arrays(self):
         self.score = [0] * (self.candidates_count + 1)
-        self.has_boundary_cache = [[False] * self.candidates_count] * (self.candidates_count + 1)
+        self.has_boundary_cache = [[False] * self.candidates_count for i in range(self.candidates_count + 1)]
         self.best_boundaries_count = [0] * (self.candidates_count + 1)
 
     @abstractmethod
