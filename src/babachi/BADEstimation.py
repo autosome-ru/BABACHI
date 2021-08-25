@@ -601,7 +601,12 @@ class ChromosomeSegmentation:  # chromosome
             else:
                 sub_chromosome = SubChromosomeSegmentation(self.gs, self, self.allele_read_counts_array[st: ed],
                                                            self.snps_positions[st: ed], part)
+                start_t = time.perf_counter()
                 sub_chromosome.estimate_sub_chr()
+                if self.gs.verbose:
+                    print('Subchromosome time: {}, subchromosome SNPs: {}'.format(
+                        time.perf_counter() - start_t, unique_positions
+                    ))
 
                 self.segments_container += sub_chromosome.segments_container
             if ed != self.total_snps_count:
