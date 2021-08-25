@@ -11,21 +11,21 @@ Arguments:
     <badmap>          Path to badmap .bed format file
     <int>             Non negative integer
     <float>           Non negative number
-    <states_string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
+    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
 
 
 Options:
     -h, --help                              Show help.
-    -q, --quiet                             Less log messages during work time.
+    -q, --quiet                             Suppress log messages.
     -b <badmap>, --badmap <badmap>          Input badmap file
     -O <path>, --output <path>              Output directory or file path. [default: ./]
     --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
-    --force-sort                            Do chromosomes need to be sorted
+    --force-sort                            Chromosomes will be sorted in numerical order
     --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
                                             Will create a directory in output path for the .svg visualizations.
     -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
-    --states <states_string>                States string [default: 1,2,3,4,5,6]
+    --states <string>                       States string [default: 1,2,3,4,5,6]
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
     -R <int>, --min-seg-bp <int>            Only allow segments containing R or more base pairs [default: 1000]
     -P <int>, --post-segment-filter <int>   Remove segments with less than P unique SNPs (IDs/positions) from output [default: 0]
@@ -403,7 +403,6 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.P_initial = S
 
     def find_optimal_boundaries(self):
-        print('{} "SNPs" on the second iteration'.format(self.candidates_count + 1))
         for i in range(self.candidates_count + 1):
             self.score[i] = self.L[0, i]
 
