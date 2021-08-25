@@ -449,7 +449,6 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
 
         self.boundaries_indexes = [self.candidate_numbers[j] for j in range(self.candidates_count) if
                                    self.has_boundary_cache[-1][j]]
-        print([j for j in range(self.candidates_count) if self.has_boundary_cache[-1][j]])
         self.boundary_numbers = [-1] + [j for j in range(self.candidates_count) if self.has_boundary_cache[-1][j]] + [
             self.candidates_count]
         cumulative_counts = [0] + [x + 1 for x in self.boundaries_indexes] + [self.last_snp_number + 1]
