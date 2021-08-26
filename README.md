@@ -14,7 +14,7 @@ All lines, starting with # are ignored.
 The output is a .bed file with BAD annotations.
 ## System Requirements
 ### Hardware requirements
-`BABABCHI` package requires only a standard computer with enough RAM to support the in-memory operations.
+`BABACHI` package requires only a standard computer with enough RAM to support the in-memory operations.
 
 ### Software requirements
 #### OS Requirements
@@ -32,6 +32,7 @@ contextlib2>=0.5.5
 pandas>=1.0.4
 matplotlib>=3.2.1
 seaborn>=0.10.1
+numba>=0.53.1
 ```
 ## Installation
 ### Install from PyPi
@@ -63,9 +64,8 @@ babachi --help
 This will produce the following message:
 ```
 Usage:
-    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>] [--states <string>]
-    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele_reads_tr <int>] [--force-sort] [--visualize] [--boundary-penalty <float>]
-    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-q | --quiet] [--allele_reads_tr <int>]
+    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [-B <float> |--boundary-penalty <float>] [--states <string>] [-Z <int> |--min-seg-snps <int>] [-R <int> |--min-seg-bp <int>] [-P <int> |--post-segment-filter <int>] [-A <int> |--atomic-region-size <int>] [-C <int> |--chr-min-snps <int>] [-S <int> |--subchr-filter <int>]
+    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [-B <float> |--boundary-penalty <float>] [--states <string>] [-Z <int> |--min-seg-snps <int>] [-R <int> |--min-seg-bp <int>] [-P <int> |--post-segment-filter <int>] [-A <int> |--atomic-region-size <int>] [-C <int> |--chr-min-snps <int>] [-S <int> |--subchr-filter <int>]    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-q | --quiet] [--allele-reads-tr <int>]
     babachi -h | --help
 
 Arguments:
@@ -74,22 +74,28 @@ Arguments:
     <badmap>          Path to badmap .bed format file
     <int>             Non negative integer
     <float>           Non negative number
-    <states_string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
+    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
 
 
 Options:
-    -h, --help                      Show help.
-    -q, --quiet                     Less log messages during work time.
-    -b <badmap>, --badmap <badmap>  Input badmap file
-    -O <path>, --output <path>      Output directory or file path. [default: ./]
-    --allele_reads_tr <int>         Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
-                                    alt_read_count >= x. [default: 5]
-    --force-sort                    Do chromosomes need to be sorted
-    --visualize                     Perform visualization of SNP-wise AD and BAD for each chromosome.
-                                    Will create a directory in output path for the .svg visualizations.
-    --boundary-penalty <float>      Boundary penalty coefficient [default: 9]
-    --states <states_string>        States string [default: 1,2,3,4,5,6,1.5,2.5]
-    --test                          Run segmentation on test file
+    -h, --help                              Show help.
+    -q, --quiet                             Suppress log messages.
+    -b <badmap>, --badmap <badmap>          Input badmap file
+    -O <path>, --output <path>              Output directory or file path. [default: ./]
+    --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
+                                            alt_read_count >= x. [default: 5]
+    --force-sort                            Chromosomes will be sorted in numerical order
+    --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
+                                            Will create a directory in output path for the .svg visualizations.
+    -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
+    --states <string>                       States string [default: 1,2,3,4,5,6]
+    -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
+    -R <int>, --min-seg-bp <int>            Only allow segments containing R or more base pairs [default: 1000]
+    -P <int>, --post-segment-filter <int>   Remove segments with less than P unique SNPs (IDs/positions) from output [default: 0]
+    -A <int>, --atomic-region-size <int>    Atomic region size in SNPs [default: 600]
+    -C <int>, --chr-min-snps <int>          Minimum number of SNPs on a chromosome to start segmentation [default: 100]
+    -S <int>, --subchr-filter <int>         Exclude subchromosomes with less than C unique SNPs  [default: 3]
+    --test                                  Run segmentation on test file
 ```
 
 ## Demo
