@@ -188,7 +188,7 @@ class Segmentation(ABC):
         p = 1.0 / (1.0 + BAD)
         log_norm = np.log1p(self.get_norm(p, N, self.sub_chromosome.gs.allele_reads_tr) +
                             self.get_norm(1 - p, N, self.sub_chromosome.gs.allele_reads_tr))
-        if (self.sub_chromosome.gs.individual_likelihood_mode in ('corrected', 'byesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
+        if (self.sub_chromosome.gs.individual_likelihood_mode in ('corrected', 'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm
         elif self.sub_chromosome.gs.individual_likelihood_mode == 'corrected':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm \
