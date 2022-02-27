@@ -1,8 +1,8 @@
 """
-
 Usage:
-    babachi <file> [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [-B <float> |--boundary-penalty <float>] [--states <string>] [-Z <int> |--min-seg-snps <int>] [-R <int> |--min-seg-bp <int>] [-P <int> |--post-segment-filter <int>] [-A <int> |--atomic-region-size <int>] [-C <int> |--chr-min-snps <int>] [-S <int> |--subchr-filter <int>]
-    babachi (--test) [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--force-sort] [--visualize] [-B <float> |--boundary-penalty <float>] [--states <string>] [-Z <int> |--min-seg-snps <int>] [-R <int> |--min-seg-bp <int>] [-P <int> |--post-segment-filter <int>] [-A <int> |--atomic-region-size <int>] [-C <int> |--chr-min-snps <int>] [-S <int> |--subchr-filter <int>]    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-q | --quiet] [--allele-reads-tr <int>]
+    babachi <file> [options]
+    babachi (--test) [options]
+    babachi visualize <file> (-b <badmap>| --badmap <badmap>)
     babachi -h | --help
 
 Arguments:
@@ -48,6 +48,8 @@ from .helpers import ChromosomePosition, pack
 from abc import ABC, abstractmethod
 from docopt import docopt
 from .visualize_segmentation import init_from_snps_collection
+
+# TODO check if input sorted
 
 
 class BADSegmentsContainer:

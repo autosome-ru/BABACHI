@@ -19,7 +19,6 @@ def init_from_snps_collection(snps_collection, BAD_file, verbose=True, img_forma
     plt.rcParams["legend.framealpha"] = 1
     plt.rcParams['axes.xmargin'] = 0
     plt.rcParams['axes.ymargin'] = 0
-    plt.rcParams["legend.framealpha"] = 1
 
     BAD_table = pd.read_table(BAD_file)
     file_name = os.path.splitext(os.path.basename(BAD_file))[0]
