@@ -1,29 +1,30 @@
 """
 Usage:
-    babachi <file> [options]
-    babachi (--test) [options]
+    babachi (<file> | --test) [options]
     babachi visualize <file> (-b <badmap>| --badmap <badmap>)
-    babachi -h | --help
 
 Arguments:
     <file>            Path to input file in tsv format with columns:
-                      chr pos ID ref_base alt_base ref_read_count alt_read_count.
+                      chr pos ID ref_base alt_base ref_read_count alt_read_count
+                      Expected to be sorted be (chr, pos)
     <badmap>          Path to badmap .bed format file
     <int>             Non negative integer
     <float>           Non negative number
     <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
 
 
-Options:
-    -h, --help                              Show help.
-    -q, --quiet                             Suppress log messages.
+Required arguments:
+    --test                                  Run segmentation on test file
     -b <badmap>, --badmap <badmap>          Input badmap file
     -O <path>, --output <path>              Output directory or file path. [default: ./]
+
+Optional arguments:
+    -h, --help                              Show help.
+    -q, --quiet                             Suppress log messages.
+    --force-sort                            Chromosomes will be sorted in numerical order
+
     --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
-    --force-sort                            Chromosomes will be sorted in numerical order
-    --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
-                                            Will create a directory in output path for the .svg visualizations.
     -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
     --states <string>                       States string [default: 1,2,3,4,5,6]
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
@@ -32,7 +33,10 @@ Options:
     -A <int>, --atomic-region-size <int>    Atomic region size in SNPs [default: 600]
     -C <int>, --chr-min-snps <int>          Minimum number of SNPs on a chromosome to start segmentation [default: 100]
     -S <int>, --subchr-filter <int>         Exclude subchromosomes with less than C unique SNPs  [default: 3]
-    --test                                  Run segmentation on test file
+
+Visualization:
+    --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
+                                            Will create a directory in output path for the .svg visualizations.
 """
 
 import math
