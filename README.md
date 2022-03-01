@@ -45,7 +45,7 @@ git clone https://github.com/autosome-ru/BABACHI
 cd BABACHI
 python3 setup.py install
 ```
-- `sudo`, if required
+- `sudo`, if required.
 The package should take less than 1 minute to install.
 
 ## Requirements
@@ -122,8 +122,9 @@ Each row represents a single segment with a constant estimated BAD. The columns 
 - start: segment start position
 - end: segment end position
 - BAD: estimated BAD
-- Q<b>X</b>: the logarithmic likelihood of the segment to have BAD = <b>X</b>
 - SNP_count: number of SNPs of the segment
+- SNP_ID_count: number of unique SNPs of the segment
 - sum_cover: the total read coverage of all SNPs of the segment
+- Q<b>X</b>: the logarithmic likelihood of the segment to have BAD = <b>X</b> 
 <br>
 The BABACHI tool is maintained by Sergey Abramov and Alexandr Boytsov.
