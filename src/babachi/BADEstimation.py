@@ -38,7 +38,7 @@ Visualization:
     --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
                                             Will create a directory in output path for the .svg visualizations.
 """
-
+import csv
 import math
 import re
 
@@ -741,6 +741,10 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
         snps_collection[record.CHROM].append((record.start, ref_read_count, alt_read_count))
     if force_sort:
         chromosomes_order = ChromosomePosition.sorted_chromosomes
+    with open('debug.snps.tsv', 'w') as out:
+        chrom = 'chr1'
+        for snp in snps_collection[chrom]:
+            out.write(pack([chrom, *snp]))
     return snps_collection, chromosomes_order, opened_file.name
 
 
