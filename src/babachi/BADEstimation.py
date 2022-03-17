@@ -728,17 +728,15 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
         if record.CHROM not in ChromosomePosition.chromosomes:
             print('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
             return False
-        if len(record.ALT) > 1 or record.INFO['MAF'] < 0.05:
+        if len(record.ALT) > 1 or record.INFO['MAF'] < 0.05 or record.ID == '.':
             continue
         if sample.data[0] != '0/1':
             continue
         ref_read_count, alt_read_count = sample.data[3]
-        if min(ref_read_count, alt_read_count) < 5:
+        if min(ref_read_count, alt_read_count) < allele_reads_tr:
             continue
         if record.CHROM not in chromosomes_order:
             chromosomes_order.append(record.CHROM)
-        if ref_read_count < allele_reads_tr or alt_read_count < allele_reads_tr:
-            continue
 
         snps_collection[record.CHROM].append((record.start, ref_read_count, alt_read_count))
     if force_sort:
