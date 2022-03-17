@@ -34,7 +34,8 @@ setup(
         'pandas>=1.0.4',
         'matplotlib>=3.2.1',
         'seaborn>=0.10.1',
-        'numba>=0.53.1'
+        'numba>=0.53.1',
+        'pyVCF>=0.6.8'
     ],
     extras_require={
         'dev': ['wheel', 'twine', 'setuptools_scm'],

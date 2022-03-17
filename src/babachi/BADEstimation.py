@@ -43,6 +43,7 @@ import math
 import re
 
 import numpy as np
+import vcf
 from numba import njit
 import os.path
 
@@ -716,29 +717,30 @@ class GenomeSegmentator:  # gs
 def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
     snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
     chromosomes_order = []
-    for line_number, line in enumerate(opened_file, 1):
-        if line[0] == '#':
-            continue
+    vcfReader = vcf.Reader(opened_file)
+    if len(vcfReader.samples) != 1:
+        return False
+    for line_number, record in enumerate(vcfReader, 1):
+        if len(record.samples) != 1:
+            return False
         else:
-            parsed_line = line.strip().split('\t')
-            if parsed_line[0] not in ChromosomePosition.chromosomes:
-                print('Invalid chromosome name: {} in line #{}'.format(parsed_line[0], line_number))
-                return False
-            try:
-                if int(parsed_line[1]) <= 0 or int(parsed_line[5]) < 0 or int(parsed_line[6]) < 0:
-                    raise ValueError
-            except ValueError:
-                print('Position, Reference allele read counts, Alternative allele read counts must be'
-                      ' a non-negative integer in line #{}'.format(line_number))
-                raise
-        ref_read_count = int(parsed_line[5])
-        alt_read_count = int(parsed_line[6])
-        if parsed_line[0] not in chromosomes_order:
-            chromosomes_order.append(parsed_line[0])
+            sample = record.samples[0]
+        if record.CHROM not in ChromosomePosition.chromosomes:
+            print('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
+            return False
+        if len(record.ALT) > 1 or record.INFO['MAF'] < 0.05:
+            continue
+        if sample.data[0] != '0/1':
+            continue
+        ref_read_count, alt_read_count = sample.data[3]
+        if min(ref_read_count, alt_read_count) < 5:
+            continue
+        if record.CHROM not in chromosomes_order:
+            chromosomes_order.append(record.CHROM)
         if ref_read_count < allele_reads_tr or alt_read_count < allele_reads_tr:
             continue
 
-        snps_collection[parsed_line[0]].append((int(parsed_line[1]), ref_read_count, alt_read_count))
+        snps_collection[record.CHROM].append((record.POS, ref_read_count, alt_read_count))
     if force_sort:
         chromosomes_order = ChromosomePosition.sorted_chromosomes
     return snps_collection, chromosomes_order, opened_file.name
@@ -857,9 +859,8 @@ def segmentation_start():
     schema = Schema({
         '<file>': And(
             Const(os.path.exists, error='Input file should exist'),
-            Use(open, error='Input file should be readable'),
-            Use(lambda x: parse_input_file(x, int(args['--allele-reads-tr']), args["--force-sort"]),
-                error='Wrong input file format')
+            Use(open),
+            Use(lambda x: parse_input_file(x, int(args['--allele-reads-tr']), args["--force-sort"]))
         ),
         '--boundary-penalty': And(
             Use(float),
