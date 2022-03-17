@@ -762,16 +762,16 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
     plt.savefig('debug_cover.png', dpi=300)
     plt.close(fig)
 
-    fig, ax = plt.subplots()
-    cov = 20
-    counts_array = np.zeros(cov + 1, dtype=np.int64)
-    for index, row in q[q['ref'] + q['alt'] == cov].iterrows():
-        k, SNP_counts = row['ref'], row['counts']
-        counts_array[k] = SNP_counts
-    plt.bar(x=list(range(cov + 1)),
-            height=counts_array)
-    plt.savefig('debug_binom.png', dpi=300)
-    plt.close(fig)
+    for cov in (20, 25, 30, 40, 50):
+        fig, ax = plt.subplots()
+        counts_array = np.zeros(cov + 1, dtype=np.int64)
+        for index, row in q[q['ref'] + q['alt'] == cov].iterrows():
+            k, SNP_counts = row['ref'], row['counts']
+            counts_array[k] = SNP_counts
+        plt.bar(x=list(range(cov + 1)),
+                height=counts_array)
+        plt.savefig('debug_binom_{}.png'.format(cov), dpi=300)
+        plt.close(fig)
 
     return snps_collection, chromosomes_order, opened_file.name
 
