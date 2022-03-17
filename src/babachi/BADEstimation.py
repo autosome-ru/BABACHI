@@ -740,7 +740,7 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
         if ref_read_count < allele_reads_tr or alt_read_count < allele_reads_tr:
             continue
 
-        snps_collection[record.CHROM].append((record.POS, ref_read_count, alt_read_count))
+        snps_collection[record.CHROM].append((record.start, ref_read_count, alt_read_count))
     if force_sort:
         chromosomes_order = ChromosomePosition.sorted_chromosomes
     return snps_collection, chromosomes_order, opened_file.name
