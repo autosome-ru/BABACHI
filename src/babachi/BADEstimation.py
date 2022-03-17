@@ -763,7 +763,13 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
     plt.close(fig)
 
     fig, ax = plt.subplots()
-    plt.hist(t[t['ref'] + t['alt'] == 20]['ref'], bins=21)
+    cov = 20
+    counts_array = np.zeros(cov + 1, dtype=np.int64)
+    for index, row in q.iterrows():
+        k, SNP_counts = row['ref'], row['counts']
+        counts_array[k] = SNP_counts
+    plt.bar(x=list(range(cov + 1)),
+            height=counts_array)
     plt.savefig('debug_binom.png', dpi=300)
     plt.close(fig)
 
