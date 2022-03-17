@@ -42,7 +42,9 @@ import csv
 import math
 import re
 
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import vcf
 from numba import njit
 import os.path
@@ -741,10 +743,30 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
         snps_collection[record.CHROM].append((record.start, ref_read_count, alt_read_count))
     if force_sort:
         chromosomes_order = ChromosomePosition.sorted_chromosomes
+
+    # FIXME DEBUG
     with open('debug.snps.tsv', 'w') as out:
         chrom = 'chr1'
         for snp in snps_collection[chrom]:
             out.write(pack([chrom, *snp]))
+    t = pd.read_table('debug.snps.tsv', header=None)
+    t.columns = ['chr', 'pos', 'ref', 'alt']
+
+    q = t.groupby(['ref', 'alt']).size().reset_index(name='counts')
+    q.to_csv('debug_stats.tsv', index=False, sep='\t')
+
+    print('ref, alt: {}, {}'.format(t['ref'].sum(), t['alt'].sum()))
+
+    fig, ax = plt.subplots()
+    plt.hist(t['ref'] + t['alt'], bins=50)
+    plt.savefig('debug_cover.png', dpi=300)
+    plt.close(fig)
+
+    fig, ax = plt.subplots()
+    plt.hist(t[t['ref'] + t['alt'] == 20]['ref'], bins=21)
+    plt.savefig('debug_binom.png', dpi=300)
+    plt.close(fig)
+
     return snps_collection, chromosomes_order, opened_file.name
 
 
