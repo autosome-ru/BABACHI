@@ -734,8 +734,7 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
             continue
         if sample.data.GT != '0/1':
             continue
-        print(sample.data)
-        ref_read_count, alt_read_count = sample.data[3]
+        ref_read_count, alt_read_count = sample.data.AD
         if min(ref_read_count, alt_read_count) < allele_reads_tr:
             continue
         if record.CHROM not in chromosomes_order:
@@ -750,8 +749,9 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
         chrom = 'chr1'
         for snp in snps_collection[chrom]:
             out.write(pack([chrom, *snp]))
-    t = pd.read_table('debug.snps.tsv', header=None)
-    t.columns = ['chr', 'pos', 'ref', 'alt']
+    t = pd.read_table('debug.snps.tsv',
+                      names=['chr', 'pos', 'ref', 'alt'],
+                      header=None)
 
     q = t.groupby(['ref', 'alt']).size().reset_index(name='counts')
     q.to_csv('debug_stats.tsv', index=False, sep='\t')
