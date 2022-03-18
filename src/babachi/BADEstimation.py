@@ -732,8 +732,9 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
             return False
         if len(record.ALT) > 1 or record.INFO['MAF'] < 0.05 or record.ID == '.':
             continue
-        if sample.data[0] != '0/1':
+        if sample.data.GT != '0/1':
             continue
+        print(sample.data)
         ref_read_count, alt_read_count = sample.data[3]
         if min(ref_read_count, alt_read_count) < allele_reads_tr:
             continue
