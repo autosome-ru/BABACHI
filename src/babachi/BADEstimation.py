@@ -51,7 +51,7 @@ import os.path
 
 from schema import Schema, And, Use, SchemaError, Const, Or
 import time
-from .helpers import ChromosomePosition, pack
+from .helpers import ChromosomePosition, pack, nucleotides
 from abc import ABC, abstractmethod
 from docopt import docopt
 from .visualize_segmentation import init_from_snps_collection
@@ -723,14 +723,15 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
     if len(vcfReader.samples) != 1:
         return False
     for line_number, record in enumerate(vcfReader, 1):
-        if len(record.samples) != 1:
-            return False
-        else:
-            sample = record.samples[0]
+        sample = record.samples[0]
         if record.CHROM not in ChromosomePosition.chromosomes:
             print('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
             return False
-        if len(record.ALT) > 1 or record.INFO['MAF'] < 0.05 or record.ID == '.':
+        if len(record.ALT) != 1:
+            continue
+        if record.REF not in nucleotides or record.ALT[0] not in nucleotides:
+            continue
+        if record.INFO['MAF'] < 0.05 or record.ID == '.':
             continue
         if sample.data.GT != '0/1':
             continue
