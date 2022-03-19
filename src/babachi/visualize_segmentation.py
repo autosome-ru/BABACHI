@@ -8,7 +8,7 @@ import seaborn as sns
 from .helpers import ChromosomePosition
 
 
-def init_from_snps_collection(snps_collection, BAD_file, verbose=True, img_format='svg', cosmic_file=None, cosmic_line=None):
+def init_from_snps_collection(snps_collection, BAD_file, verbose=True, ext='svg', cosmic_file=None, cosmic_line=None):
     sns.set(font_scale=1.2, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
                                                                  '#D55E00', '#CC79A7'))
     plt.rcParams['font.weight'] = "medium"
@@ -50,7 +50,7 @@ def init_from_snps_collection(snps_collection, BAD_file, verbose=True, img_forma
             continue
         snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
         snps['cov'] = snps['ref_c'] + snps['alt_c']
-        visualize_chromosome(os.path.join(out_path, '{}_{}.{}'.format(file_name, chromosome, img_format)),
+        visualize_chromosome(os.path.join(out_path, '{}_{}.{}'.format(file_name, chromosome, ext)),
                              chromosome, snps,
                              BAD_table[BAD_table['#chr'] == chromosome], cosmics[chromosome] if cosmics else None)
 

@@ -1,32 +1,36 @@
 """
 Usage:
     babachi (<file> | --test) [options]
-    babachi visualize <file> (-b <badmap>| --badmap <badmap>)
+    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-f]
+    babachi filter <file> [-O <path>]
 
 Arguments:
-    <file>            Path to input file in tsv format with columns:
-                      chr pos ID ref_base alt_base ref_read_count alt_read_count
-                      Expected to be sorted be (chr, pos)
-    <badmap>          Path to badmap .bed format file
+    <file>            Path to input VCF file. Expected to be sorted be (chr, pos)
+    <path>            Path to file
     <int>             Non negative integer
     <float>           Non negative number
-    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
+    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3).
+                      Each state must be >= 1
 
 
 Required arguments:
     --test                                  Run segmentation on test file
-    -b <badmap>, --badmap <badmap>          Input badmap file
+    -b <path>, --badmap <path>              Input badmap file
     -O <path>, --output <path>              Output directory or file path. [default: ./]
 
 Optional arguments:
-    -h, --help                              Show help.
-    -q, --quiet                             Suppress log messages.
-    --force-sort                            Chromosomes will be sorted in numerical order
+    -h, --help                              Show help
+    -q, --quiet                             Suppress log messages
+    -f, --filter-vcf                        Filter input file
+    -s, --force-sort                        Chromosomes will be sorted in numerical order
+    -j <int>, --jobs <int>                  Number of parallel jobs to use,
+                                            will not be more than # of chromosomes [default: 1]
 
     --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
-    -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
+
     --states <string>                       States string [default: 1,2,3,4,5,6]
+    -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
     -R <int>, --min-seg-bp <int>            Only allow segments containing R or more base pairs [default: 1000]
     -P <int>, --post-segment-filter <int>   Remove segments with less than P unique SNPs (IDs/positions) from output [default: 0]
@@ -36,15 +40,13 @@ Optional arguments:
 
 Visualization:
     --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
-                                            Will create a directory in output path for the .svg visualizations.
+                                            Will create a directory in output path for the <ext> visualizations
+    -e <ext>, --ext <ext>                   Extension to save visualizations with [default: .svg]
 """
 import math
 import multiprocessing as mp
 import re
-
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import vcf
 from numba import njit
 import os.path
@@ -58,8 +60,6 @@ from .visualize_segmentation import init_from_snps_collection
 
 
 # TODO check if input sorted
-
-
 class BADSegmentsContainer:
     allowed_fields = ['boundaries_positions', 'BAD_estimations', 'likelihoods', 'snps_counts', 'covers',
                       'snp_id_counts']
@@ -651,6 +651,7 @@ class GenomeSegmentator:  # gs
                  states=None,
                  b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
                  post_seg_filter=0,
+                 jobs=1,
                  atomic_region_size=600, chr_filter=100, subchr_filter=3):
 
         self.verbose = verbose
@@ -659,6 +660,7 @@ class GenomeSegmentator:  # gs
         self.b_penalty = b_penalty  # boundary penalty coefficient k ('CAIC' * k)
         self.allele_reads_tr = allele_reads_tr  # "minimal read count on each allele" snp filter
         self.post_seg_filter = post_seg_filter  # min number of SNPs in the segment to be included in the output
+        self.jobs = jobs
 
         if states is None or len(states) == 0:
             self.BAD_list = [1, 2, 3, 4, 5]
@@ -707,7 +709,7 @@ class GenomeSegmentator:  # gs
                                                                                                   self.BAD_list]))
             ctx = mp.get_context("forkserver")
             segmentations = [i for i in range(len(self.chr_segmentations))]
-            with ctx.Pool(22) as p:
+            with ctx.Pool(min(self.jobs, len(self.chr_segmentations))) as p:
                 for i, _ in zip(segmentations,
                                 p.map(self.start_chromosome, segmentations)):
                     self.write_BAD_to_file(self.chr_segmentations[i], outfile)
@@ -728,66 +730,62 @@ class GenomeSegmentator:  # gs
                     yield segment
 
 
-def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
-    snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
-    chromosomes_order = []
-    vcfReader = vcf.Reader(opened_file)
-    if len(vcfReader.samples) != 1:
-        raise ValueError('More than one sample found in vcf!')
-    for line_number, record in enumerate(vcfReader, 1):
+class InputParser:
+    def __init__(self, allele_reads_tr=5, force_sort=False, to_filter=True):
+        self.allele_reads_tr = allele_reads_tr
+        self.to_filter = to_filter
+        self.force_sort = force_sort
+        if force_sort:
+            self.chromosomes_order = ChromosomePosition.sorted_chromosomes
+        else:
+            self.chromosomes_order = []
+
+    def _filter_record(self, record, line_number):
         sample = record.samples[0]
         if record.CHROM not in ChromosomePosition.chromosomes:
             print('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
-            continue
-        if len(record.ALT) != 1:
-            continue
-        if record.REF not in nucleotides or record.ALT[0] not in nucleotides:
-            continue
-        if record.INFO['MAF'] < 0.05 or record.ID == '.':
-            continue
-        if sample.data.GT != '0/1':
-            continue
+            return False
+        if self.to_filter:
+            if len(record.ALT) != 1:
+                return False
+            if record.REF not in nucleotides or record.ALT[0] not in nucleotides:
+                return False
+            maf = record.INFO.get('MAF', None)
+            if (maf is not None and maf < 0.05) or record.ID == '.':  #TODO what if no MAF
+                return False
+            if sample.data.GT != '0/1':
+                return False
         ref_read_count, alt_read_count = sample.data.AD
-        if min(ref_read_count, alt_read_count) < allele_reads_tr:
-            continue
-        if record.CHROM not in chromosomes_order:
-            chromosomes_order.append(record.CHROM)
+        if self.to_filter and min(ref_read_count, alt_read_count) < self.allele_reads_tr:
+            return False
+        if not self.force_sort:
+            if record.CHROM not in self.chromosomes_order:
+                self.chromosomes_order.append(record.CHROM)
+        return ref_read_count, alt_read_count
 
-        snps_collection[record.CHROM].append((record.start, ref_read_count, alt_read_count))
-    if force_sort:
-        chromosomes_order = ChromosomePosition.sorted_chromosomes
-
-    # FIXME DEBUG
-    with open('debug.snps.tsv', 'w') as out:
-        chrom = 'chr1'
-        for snp in snps_collection[chrom]:
-            out.write(pack([chrom, *snp]))
-    t = pd.read_table('debug.snps.tsv',
-                      names=['chr', 'pos', 'ref', 'alt'],
-                      header=None)
-
-    q = t.groupby(['ref', 'alt']).size().reset_index(name='counts')
-    q.to_csv('debug_stats.tsv', index=False, sep='\t')
-
-    print('ref, alt: {}, {}'.format(t['ref'].sum(), t['alt'].sum()))
-
-    fig, ax = plt.subplots()
-    plt.hist(t['ref'] + t['alt'], bins=50)
-    plt.savefig('debug_cover.png', dpi=300)
-    plt.close(fig)
-
-    for cov in (20, 25, 30, 40, 50):
-        fig, ax = plt.subplots()
-        counts_array = np.zeros(cov + 1, dtype=np.int64)
-        for index, row in q[q['ref'] + q['alt'] == cov].iterrows():
-            k, SNP_counts = row['ref'], row['counts']
-            counts_array[k] = SNP_counts
-        plt.bar(x=list(range(cov + 1)),
-                height=counts_array)
-        plt.savefig('debug_binom_{}.png'.format(cov), dpi=300)
-        plt.close(fig)
-
-    return snps_collection, chromosomes_order, opened_file.name
+    def filter_vcf(self, file_path, out_file_path=None):
+        """
+        :param file_path: input VCF file
+        :param out_file_path: optional, if provided - write results to file
+        :return: None if out_file_path else snps_collection dict
+        """
+        print('Reading input file...')
+        vcfReader = vcf.Reader(filename=file_path)
+        if len(vcfReader.samples) != 1:
+            raise ValueError('More than one sample found in vcf!')
+        if out_file_path:
+            with open(out_file_path, 'w') as opened_out_file:
+                vcfWriter = vcf.Writer(opened_out_file, vcfReader)
+                for line_number, record in enumerate(vcfReader, 1):
+                    if self._filter_record(record, line_number):
+                        vcfWriter.write_record(record)
+        else:
+            snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
+            for line_number, record in enumerate(vcfReader, 1):
+                filter_result = self._filter_record(record, line_number)
+                if filter_result:
+                    snps_collection[record.CHROM].append((record.start, *filter_result))
+            return snps_collection, self.chromosomes_order
 
 
 def convert_frac_to_float(string):
@@ -895,16 +893,21 @@ def fast_find_optimal_borders(
     return boundaries_indexes
 
 
+def make_file_path_from_dir(out_path, file_name):
+    if os.path.isdir(out_path):
+        return os.path.join(out_path, file_name + '.bed')
+    else:
+        return out_path
+
 def segmentation_start():
     args = docopt(__doc__)
+    #FIXME TEST
     if args['--test']:
         args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests', 'test.tsv')
 
     schema = Schema({
         '<file>': And(
             Const(os.path.exists, error='Input file should exist'),
-            Use(open),
-            Use(lambda x: parse_input_file(x, int(args['--allele-reads-tr']), args["--force-sort"]))
         ),
         '--boundary-penalty': And(
             Use(float),
@@ -959,6 +962,8 @@ def segmentation_start():
             Use(int),
             Const(lambda x: x >= 200), error='Atomic region size (in SNPs) must be a non negative integer'
         ),
+        '--jobs': Use(int),
+        '--ext': str,
         str: bool
     })
     try:
@@ -966,13 +971,26 @@ def segmentation_start():
     except SchemaError as e:
         print(__doc__)
         exit('Error: {}'.format(e))
-
-    snps_collection, chromosomes_order, full_name = args['<file>']
+    input_parser = InputParser(
+        allele_reads_tr=int(args['--allele-tr']),
+        force_sort=args['--force-sort'],
+        to_filter=args['--filter-vcf'] or args['filter']
+    )
+    full_name = args['<file>']
     file_name = os.path.splitext(os.path.basename(full_name))[0]
+    try:
+        if args['filter']:
+            input_parser.filter_vcf(file_path=full_name,
+                                    out_file_path=make_file_path_from_dir(args['--output'], file_name))
+            exit(0)
+            return
+        else:
+            snps_collection, chromosomes_order = input_parser.filter_vcf(file_path=full_name)
+    except Exception as e:
+        raise ValueError("Can not read the input file", e.args)
+
     if not args['visualize']:
-        badmap_file_path = args['--output']
-        if os.path.isdir(badmap_file_path):
-            badmap_file_path += file_name + '.bed'
+        badmap_file_path = make_file_path_from_dir(args['--output'], file_name)
 
         verbose = not args['--quiet']
         mode = 'corrected'
@@ -990,7 +1008,8 @@ def segmentation_start():
                                post_seg_filter=args['--post-segment-filter'],
                                atomic_region_size=args['--atomic-region-size'],
                                chr_filter=args['--chr-min-snps'],
-                               subchr_filter=args['--subchr-filter']
+                               subchr_filter=args['--subchr-filter'],
+                               jobs=args['--jobs']
                                )
         try:
             GS.estimate_BAD()
@@ -1000,4 +1019,6 @@ def segmentation_start():
     else:
         badmap_file_path = args['--badmap']
     if args['--visualize'] or args['visualize']:
-        init_from_snps_collection(snps_collection=snps_collection, BAD_file=badmap_file_path)
+        init_from_snps_collection(snps_collection=snps_collection,
+                                  ext=args['--ext'],
+                                  BAD_file=badmap_file_path)
