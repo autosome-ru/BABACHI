@@ -709,9 +709,11 @@ class GenomeSegmentator:  # gs
                                                                                                   self.BAD_list]))
             ctx = mp.get_context("forkserver")
             segmentations = [i for i in range(len(self.chr_segmentations))]
+            print(segmentations)
             with ctx.Pool(min(self.jobs, len(self.chr_segmentations))) as p:
                 for i, _ in zip(segmentations,
                                 p.map(self.start_chromosome, segmentations)):
+                    print('SSS')
                     self.write_BAD_to_file(self.chr_segmentations[i], outfile)
                     self.chr_segmentations[i] = None
 
