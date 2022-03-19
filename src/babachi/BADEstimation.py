@@ -97,7 +97,7 @@ class BADSegmentsContainer:
                     if isinstance(boundary, tuple):
                         current_position = boundary[1]
                     else:
-                        current_position = 1
+                        current_position = 0
                 elif isinstance(boundary, tuple):
                     yield BADSegment(
                         chromosome_segmentation.chromosome,
@@ -664,7 +664,7 @@ class GenomeSegmentator:  # gs
         self.jobs = jobs
 
         if states is None or len(states) == 0:
-            self.BAD_list = [1, 2, 3, 4, 5]
+            self.BAD_list = [1, 2, 3, 4, 5, 6]
         else:
             self.BAD_list = sorted(states)
         if prior is None:
@@ -690,7 +690,7 @@ class GenomeSegmentator:  # gs
         self.chr_segmentations = []  # list of ChromosomeSegmentation instances
 
         for chromosome in self.chromosomes_order:
-            chr_segmentation = ChromosomeSegmentation(self, chromosome, ChromosomePosition.chromosomes[chromosome])
+            chr_segmentation = ChromosomeSegmentation(self, chromosome, ChromosomePosition.chromosomes[chromosome] - 1)
             if self.verbose:
                 print('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
             self.chr_segmentations.append(chr_segmentation)
