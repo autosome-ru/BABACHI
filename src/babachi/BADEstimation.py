@@ -709,7 +709,7 @@ class GenomeSegmentator:  # gs
             with ctx.Pool(2) as p:
                 for i, res in zip(segmentations,
                                   p.map(self.start_chromosome, segmentations)):
-                    print(i, res)
+                    print(i, res, segmentations[i])
 
             # for j in range(len(self.chr_segmentations)):
             #     chromosome = self.chr_segmentations[j]
