@@ -706,16 +706,16 @@ class GenomeSegmentator:  # gs
                                                                                                   self.BAD_list]))
             ctx = mp.get_context("forkserver")
             segmentations = [i for i in range(len(self.chr_segmentations))]
-            with ctx.Pool(10) as p:
+            with ctx.Pool(2) as p:
                 for i, res in zip(segmentations,
                                   p.map(self.start_chromosome, segmentations)):
                     print(i, res)
 
-            for j in range(len(self.chr_segmentations)):
-                chromosome = self.chr_segmentations[j]
-                # chromosome.estimate_chr()
-                self.write_BAD_to_file(chromosome, outfile)
-                self.chr_segmentations[j] = None
+            # for j in range(len(self.chr_segmentations)):
+            #     chromosome = self.chr_segmentations[j]
+            #     # chromosome.estimate_chr()
+            #     self.write_BAD_to_file(chromosome, outfile)
+            #     self.chr_segmentations[j] = None
 
     def write_BAD_to_file(self, chromosome_segmentation, outfile):
         segments_generator = chromosome_segmentation.segments_container.get_BAD_segments(chromosome_segmentation)
@@ -737,7 +737,7 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
     chromosomes_order = []
     vcfReader = vcf.Reader(opened_file)
     if len(vcfReader.samples) != 1:
-        return False
+        raise ValueError('More than one sample found in vcf!')
     for line_number, record in enumerate(vcfReader, 1):
         sample = record.samples[0]
         if record.CHROM not in ChromosomePosition.chromosomes:
