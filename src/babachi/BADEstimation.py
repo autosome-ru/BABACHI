@@ -707,17 +707,11 @@ class GenomeSegmentator:  # gs
                                                                                                   self.BAD_list]))
             ctx = mp.get_context("forkserver")
             segmentations = [i for i in range(len(self.chr_segmentations))]
-            with ctx.Pool(1) as p:
+            with ctx.Pool(22) as p:
                 for i, _ in zip(segmentations,
                                 p.map(self.start_chromosome, segmentations)):
                     self.write_BAD_to_file(self.chr_segmentations[i], outfile)
                     self.chr_segmentations[i] = None
-
-            # for j in range(len(self.chr_segmentations)):
-            #     chromosome = self.chr_segmentations[j]
-            #     # chromosome.estimate_chr()
-            #     self.write_BAD_to_file(chromosome, outfile)
-            #     self.chr_segmentations[j] = None
 
     def write_BAD_to_file(self, chromosome_segmentation, outfile):
         segments_generator = chromosome_segmentation.segments_container.get_BAD_segments(chromosome_segmentation)
