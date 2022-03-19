@@ -197,7 +197,8 @@ class Segmentation(ABC):
         log_norm = np.log1p(self.get_norm(p, N, self.sub_chromosome.gs.allele_reads_tr) +
                             self.get_norm(1 - p, N, self.sub_chromosome.gs.allele_reads_tr))
         if (self.sub_chromosome.gs.individual_likelihood_mode in (
-        'corrected', 'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
+                'corrected',
+                'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm
         elif self.sub_chromosome.gs.individual_likelihood_mode == 'corrected':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm \
@@ -706,10 +707,11 @@ class GenomeSegmentator:  # gs
                                                                                                   self.BAD_list]))
             ctx = mp.get_context("forkserver")
             segmentations = [i for i in range(len(self.chr_segmentations))]
-            with ctx.Pool(2) as p:
-                for i, res in zip(segmentations,
-                                  p.map(self.start_chromosome, segmentations)):
-                    print(i, res, self.chr_segmentations[i])
+            with ctx.Pool(1) as p:
+                for i, _ in zip(segmentations,
+                                p.map(self.start_chromosome, segmentations)):
+                    self.write_BAD_to_file(self.chr_segmentations[i], outfile)
+                    self.chr_segmentations[i] = None
 
             # for j in range(len(self.chr_segmentations)):
             #     chromosome = self.chr_segmentations[j]
