@@ -38,8 +38,8 @@ Visualization:
     --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
                                             Will create a directory in output path for the .svg visualizations.
 """
-import csv
 import math
+import multiprocessing as mp
 import re
 
 import matplotlib.pyplot as plt
@@ -55,6 +55,7 @@ from .helpers import ChromosomePosition, pack, nucleotides
 from abc import ABC, abstractmethod
 from docopt import docopt
 from .visualize_segmentation import init_from_snps_collection
+
 
 # TODO check if input sorted
 
@@ -195,7 +196,8 @@ class Segmentation(ABC):
         p = 1.0 / (1.0 + BAD)
         log_norm = np.log1p(self.get_norm(p, N, self.sub_chromosome.gs.allele_reads_tr) +
                             self.get_norm(1 - p, N, self.sub_chromosome.gs.allele_reads_tr))
-        if (self.sub_chromosome.gs.individual_likelihood_mode in ('corrected', 'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
+        if (self.sub_chromosome.gs.individual_likelihood_mode in (
+        'corrected', 'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm
         elif self.sub_chromosome.gs.individual_likelihood_mode == 'corrected':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm \
@@ -354,7 +356,7 @@ class AtomicRegionSegmentation(Segmentation):
             self.best_boundaries_count[i] = sum(self.has_boundary_cache[i])
 
         self.boundaries_indexes = [self.candidate_numbers[j] for j in range(self.candidates_count) if
-                                  self.has_boundary_cache[-1][j]]
+                                   self.has_boundary_cache[-1][j]]
 
 
 class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
@@ -517,7 +519,8 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.candidate_numbers = sorted(list(boundary_set))
         self.candidates_count = len(self.candidate_numbers)
         if self.gs.verbose:
-            print('Unique SNPs positions in subchromosome {}: {}'.format(self.index_in_chromosome, self.unique_snp_positions))
+            print('Unique SNPs positions in subchromosome {}: {}'.format(self.index_in_chromosome,
+                                                                         self.unique_snp_positions))
 
         self.estimate()
         self.estimate_BAD()
@@ -635,15 +638,18 @@ class ChromosomeSegmentation:  # chromosome
                     self.segments_container.snps_counts, self.segments_container.snp_id_counts,
                     self.critical_gap_factor * self.effective_length,
                     '[' + ', '.join(map(
-                        lambda x: '{:.2f}Mbp'.format(x/1000000) if isinstance(x, (int, float, np.int_, np.float_)) else (
-                            '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0]/1000000, (x[1] - x[0])/1000000)),
+                        lambda x: '{:.2f}Mbp'.format(x / 1000000) if isinstance(x,
+                                                                                (int, float, np.int_, np.float_)) else (
+                            '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0] / 1000000, (x[1] - x[0]) / 1000000)),
                         self.segments_container.boundaries_positions)) + ']'))
             print('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
 
 
 class GenomeSegmentator:  # gs
-    def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', scoring_mode='marginal', states=None,
-                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0, post_seg_filter=0,
+    def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', scoring_mode='marginal',
+                 states=None,
+                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
+                 post_seg_filter=0,
                  atomic_region_size=600, chr_filter=100, subchr_filter=3):
 
         self.verbose = verbose
@@ -688,6 +694,9 @@ class GenomeSegmentator:  # gs
             if self.verbose:
                 print('\n')
 
+    def start_chromosome(self, j):
+        self.chr_segmentations[j].estimate_chr()
+
     # noinspection PyTypeChecker
     def estimate_BAD(self):
         with open(self.out, 'w') as outfile:
@@ -695,6 +704,13 @@ class GenomeSegmentator:  # gs
                 pack(['#chr', 'start', 'end', 'BAD', 'SNP_count', 'SNP_ID_count', 'sum_cover'] + ['Q{:.2f}'.format(BAD)
                                                                                                   for BAD in
                                                                                                   self.BAD_list]))
+            ctx = mp.get_context("forkserver")
+            segmentations = [i for i in range(len(self.chr_segmentations))]
+            with ctx.Pool(10) as p:
+                for i, res in zip(segmentations,
+                                  p.map(self.start_chromosome, segmentations)):
+                    print(i, res)
+
             for j in range(len(self.chr_segmentations)):
                 chromosome = self.chr_segmentations[j]
                 chromosome.estimate_chr()
@@ -886,7 +902,7 @@ def fast_find_optimal_borders(
 def segmentation_start():
     args = docopt(__doc__)
     if args['--test']:
-        args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests/test.tsv')
+        args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests', 'test.tsv')
 
     schema = Schema({
         '<file>': And(
