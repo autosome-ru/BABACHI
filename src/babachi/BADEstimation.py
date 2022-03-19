@@ -713,7 +713,7 @@ class GenomeSegmentator:  # gs
 
             for j in range(len(self.chr_segmentations)):
                 chromosome = self.chr_segmentations[j]
-                chromosome.estimate_chr()
+                # chromosome.estimate_chr()
                 self.write_BAD_to_file(chromosome, outfile)
                 self.chr_segmentations[j] = None
 
