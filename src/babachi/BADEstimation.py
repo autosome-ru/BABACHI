@@ -718,6 +718,7 @@ class GenomeSegmentator:  # gs
     def write_BAD_to_file(self, chromosome_segmentation, outfile):
         print(outfile.name)
         segments_generator = chromosome_segmentation.segments_container.get_BAD_segments(chromosome_segmentation)
+        print([segment for segment in segments_generator])
         for segment in self.filter_segments(segments_generator):
             print(segment)
             outfile.write(str(segment))
