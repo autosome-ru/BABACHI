@@ -44,7 +44,7 @@ Visualization:
     -e <ext>, --ext <ext>                   Extension to save visualizations with [default: .svg]
 """
 import math
-import pathos.multiprocessing as mp
+import multiprocessing as mp
 import re
 import numpy as np
 import vcf
@@ -584,7 +584,7 @@ class ChromosomeSegmentation:  # chromosome
     def estimate_chr(self):
         print('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
-            return
+            return None
 
         start_t = time.perf_counter()
         self.adjust_critical_gap()
@@ -644,6 +644,7 @@ class ChromosomeSegmentation:  # chromosome
                             '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0] / 1000000, (x[1] - x[0]) / 1000000)),
                         self.segments_container.boundaries_positions)) + ']'))
             print('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
+        return self
 
 
 class GenomeSegmentator:  # gs
@@ -698,7 +699,7 @@ class GenomeSegmentator:  # gs
                 print('\n')
 
     def start_chromosome(self, j):
-        self.chr_segmentations[j].estimate_chr()
+        return self.chr_segmentations[j].estimate_chr()
 
     # noinspection PyTypeChecker
     def estimate_BAD(self):
@@ -709,10 +710,12 @@ class GenomeSegmentator:  # gs
                                                                                                   self.BAD_list]))
             ctx = mp.get_context("forkserver")
             segmentations = [i for i in range(len(self.chr_segmentations))]
-            with ctx.Pool(min(self.jobs, len(self.chr_segmentations))) as p:
-                for i, _ in zip(segmentations,
-                                p.map(self.start_chromosome, segmentations)):
-                    self.write_BAD_to_file(self.chr_segmentations[i], outfile)
+            jobs = min(self.jobs, len(self.chr_segmentations))
+            with ctx.Pool(jobs) as p:
+                for i, res in zip(segmentations,
+                                  p.map(self.start_chromosome, segmentations)):
+                    print(res)
+                    self.write_BAD_to_file(res, outfile)
                     self.chr_segmentations[i] = None
 
     def write_BAD_to_file(self, chromosome_segmentation, outfile):
@@ -753,7 +756,7 @@ class InputParser:
             if record.REF not in nucleotides or record.ALT[0] not in nucleotides:
                 return False
             maf = record.INFO.get('MAF', None)
-            if (maf is not None and maf < 0.05) or record.ID == '.':  #TODO what if no MAF
+            if (maf is not None and maf < 0.05) or record.ID == '.':  # TODO what if no MAF
                 return False
             if sample.data.GT != '0/1':
                 return False
@@ -901,9 +904,10 @@ def make_file_path_from_dir(out_path, file_name, ext='bed'):
     else:
         return out_path
 
+
 def segmentation_start():
     args = docopt(__doc__)
-    #FIXME TEST
+    # FIXME TEST
     if args['--test']:
         args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests', 'test.tsv')
 
