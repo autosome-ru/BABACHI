@@ -91,6 +91,7 @@ class BADSegmentsContainer:
 
     def get_BAD_segments(self, chromosome_segmentation):
         current_position = None
+        print(self.boundaries_positions)
         if chromosome_segmentation.total_snps_count >= chromosome_segmentation.gs.snp_per_chr_tr:
             for counter, boundary in enumerate(self.boundaries_positions, -1):
                 if current_position is None:
@@ -716,7 +717,6 @@ class GenomeSegmentator:  # gs
                     self.chr_segmentations[i] = None
 
     def write_BAD_to_file(self, chromosome_segmentation, outfile):
-        print(outfile.name)
         segments_generator = chromosome_segmentation.segments_container.get_BAD_segments(chromosome_segmentation)
         print([segment for segment in segments_generator])
         for segment in self.filter_segments(segments_generator):
