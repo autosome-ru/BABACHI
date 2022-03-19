@@ -2,7 +2,7 @@
 Usage:
     babachi (<file> | --test) [options]
     babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-f]
-    babachi filter <file> [-O <path>]
+    babachi filter <file> [-O <path> -a <int>]
 
 Arguments:
     <file>            Path to input VCF file. Expected to be sorted be (chr, pos)
@@ -895,7 +895,7 @@ def fast_find_optimal_borders(
 
 def make_file_path_from_dir(out_path, file_name, ext='bed'):
     if os.path.isdir(out_path):
-        return os.path.join(out_path, file_name + ext)
+        return os.path.join(out_path, file_name + '.' + ext)
     else:
         return out_path
 
@@ -982,7 +982,7 @@ def segmentation_start():
         if args['filter']:
             input_parser.filter_vcf(file_path=full_name,
                                     out_file_path=make_file_path_from_dir(args['--output'], file_name,
-                                                                          '.filtered.' + ext))
+                                                                          'filtered.' + ext[1:]))
             exit(0)
             return
         else:
