@@ -26,7 +26,7 @@ Optional arguments:
     -j <int>, --jobs <int>                  Number of parallel jobs to use,
                                             will not be more than # of chromosomes [default: 1]
 
-    --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
+    -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
 
     --states <string>                       States string [default: 1,2,3,4,5,6]
@@ -972,7 +972,7 @@ def segmentation_start():
         print(__doc__)
         exit('Error: {}'.format(e))
     input_parser = InputParser(
-        allele_reads_tr=int(args['--allele-tr']),
+        allele_reads_tr=int(args['--allele-reads-tr']),
         force_sort=args['--force-sort'],
         to_filter=args['--filter-vcf'] or args['filter']
     )
