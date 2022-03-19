@@ -44,7 +44,7 @@ Visualization:
     -e <ext>, --ext <ext>                   Extension to save visualizations with [default: .svg]
 """
 import math
-import multiprocessing as mp
+import pathos.multiprocessing as mp
 import re
 import numpy as np
 import vcf
@@ -91,7 +91,6 @@ class BADSegmentsContainer:
 
     def get_BAD_segments(self, chromosome_segmentation):
         current_position = None
-        print(self.boundaries_positions)
         if chromosome_segmentation.total_snps_count >= chromosome_segmentation.gs.snp_per_chr_tr:
             for counter, boundary in enumerate(self.boundaries_positions, -1):
                 if current_position is None:
