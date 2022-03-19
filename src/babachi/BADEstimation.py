@@ -21,15 +21,15 @@ Required arguments:
 Optional arguments:
     -h, --help                              Show help
     -q, --quiet                             Suppress log messages
-    -f, --filter-vcf                        Filter input file
-    -s, --force-sort                        Chromosomes will be sorted in numerical order
+    -n, --no-filter                         Skip filtering of input file
+    -f, --force-sort                        Chromosomes will be sorted in numerical order
     -j <int>, --jobs <int>                  Number of parallel jobs to use,
                                             will not be more than # of chromosomes [default: 1]
 
     -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
 
-    --states <string>                       States string [default: 1,2,3,4,5,6]
+    -s <string>, --states <string>          States string [default: 1,2,3,4,5,6]
     -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
     -R <int>, --min-seg-bp <int>            Only allow segments containing R or more base pairs [default: 1000]
@@ -710,7 +710,10 @@ class GenomeSegmentator:  # gs
                                                                                                   self.BAD_list]))
             ctx = mp.get_context("forkserver")
             segmentations = [i for i in range(len(self.chr_segmentations))]
-            jobs = min(self.jobs, len(self.chr_segmentations))
+
+            jobs = min(self.jobs,
+                       len(self.chr_segmentations),
+                       max(1, mp.cpu_count()))
             with ctx.Pool(jobs) as p:
                 for i, res in zip(segmentations,
                                   p.map(self.start_chromosome, segmentations)):
@@ -977,7 +980,7 @@ def segmentation_start():
     input_parser = InputParser(
         allele_reads_tr=int(args['--allele-reads-tr']),
         force_sort=args['--force-sort'],
-        to_filter=args['--filter-vcf'] or args['filter']
+        to_filter=not args['--no-filter'] or args['filter']
     )
     full_name = args['<file>']
     file_name, ext = os.path.splitext(os.path.basename(full_name))
