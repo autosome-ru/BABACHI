@@ -726,7 +726,7 @@ def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
         sample = record.samples[0]
         if record.CHROM not in ChromosomePosition.chromosomes:
             print('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
-            return False
+            continue
         if len(record.ALT) != 1:
             continue
         if record.REF not in nucleotides or record.ALT[0] not in nucleotides:
