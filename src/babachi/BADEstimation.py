@@ -584,7 +584,7 @@ class ChromosomeSegmentation:  # chromosome
     def estimate_chr(self):
         print('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
-            return None
+            return self
 
         start_t = time.perf_counter()
         self.adjust_critical_gap()
@@ -714,7 +714,6 @@ class GenomeSegmentator:  # gs
             with ctx.Pool(jobs) as p:
                 for i, res in zip(segmentations,
                                   p.map(self.start_chromosome, segmentations)):
-                    print(res)
                     self.write_BAD_to_file(res, outfile)
                     self.chr_segmentations[i] = None
 
