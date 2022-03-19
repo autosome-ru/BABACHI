@@ -1,7 +1,7 @@
 """
 Usage:
     babachi (<file> | --test) [options]
-    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [-f]
+    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [options]
     babachi filter <file> [-O <path> -a <int>]
 
 Arguments:
