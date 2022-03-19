@@ -893,9 +893,9 @@ def fast_find_optimal_borders(
     return boundaries_indexes
 
 
-def make_file_path_from_dir(out_path, file_name):
+def make_file_path_from_dir(out_path, file_name, ext='bed'):
     if os.path.isdir(out_path):
-        return os.path.join(out_path, file_name + '.bed')
+        return os.path.join(out_path, file_name + ext)
     else:
         return out_path
 
@@ -977,11 +977,12 @@ def segmentation_start():
         to_filter=args['--filter-vcf'] or args['filter']
     )
     full_name = args['<file>']
-    file_name = os.path.splitext(os.path.basename(full_name))[0]
+    file_name, ext = os.path.splitext(os.path.basename(full_name))
     try:
         if args['filter']:
             input_parser.filter_vcf(file_path=full_name,
-                                    out_file_path=make_file_path_from_dir(args['--output'], file_name))
+                                    out_file_path=make_file_path_from_dir(args['--output'], file_name,
+                                                                          '.filtered.' + ext))
             exit(0)
             return
         else:
