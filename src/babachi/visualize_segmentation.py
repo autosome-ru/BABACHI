@@ -172,7 +172,7 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=No
 
     ref_snps = snps[snps['ref_c'] >= snps['alt_c']]
     alt_snps = snps[snps['ref_c'] < snps['alt_c']]
-    for snp_df, cmap in zip((ref_snps, alt_snps), ('BuGn, BuPu')):
+    for snp_df, cmap in zip((ref_snps, alt_snps), ('BuGn', 'BuPu')):
         ax.scatter(x=snp_df['pos'], y=list(snp_df['AD']), c=snp_df['cov'], cmap=cmap, s=2, vmin=10, vmax=30)
     ax.set_xlim(0, ChromosomePosition.chromosomes[chromosome])
     ax.set_ylim(y_min, y_max)
