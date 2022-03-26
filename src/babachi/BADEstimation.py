@@ -746,8 +746,8 @@ class InputParser:
         else:
             self.chromosomes_order = []
 
-    def _filter_record(self, record, line_number):
-        sample = record.samples[0]
+    def _filter_record(self, record, line_number, sample_id_list, add_counts=False):
+        samples = [record.samples[sample_id] for sample_id in sample_id_list]
         if record.CHROM not in ChromosomePosition.chromosomes:
             print('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
             return False
@@ -757,40 +757,71 @@ class InputParser:
             if record.REF not in nucleotides or record.ALT[0] not in nucleotides:
                 return False
             maf = record.INFO.get('MAF', None)
-            if (maf is not None and maf < 0.05) or record.ID == '.':  # TODO what if no MAF
+            if (maf is not None and maf < 0.05) or record.ID == '.':
                 return False
-            if sample.data.GT != '0/1':
-                return False
-        ref_read_count, alt_read_count = sample.data.AD
-        if self.to_filter and min(ref_read_count, alt_read_count) < self.allele_reads_tr:
-            return False
+        result = []
+        if add_counts:
+            ref_read_sum = 0
+            alt_read_sum = 0
+        for sample in samples:
+            sample_ref_read_count, sample_alt_read_count = sample.data.AD
+            if self.to_filter:
+                if min(sample_ref_read_count, sample_alt_read_count) < self.allele_reads_tr:
+                    continue
+                if sample.data.GT != '0/1':
+                    return False  # FIXME: continue?
+            if add_counts:
+                ref_read_sum += sample_ref_read_count
+                alt_read_sum += sample_alt_read_count
+            else:
+                result.append(
+                    (sample_ref_read_count, sample_alt_read_count)
+                )
+        if add_counts:
+            result.append(
+                (ref_read_sum, alt_read_sum)
+            )
         if not self.force_sort:
             if record.CHROM not in self.chromosomes_order:
                 self.chromosomes_order.append(record.CHROM)
-        return ref_read_count, alt_read_count
+        return result
 
-    def filter_vcf(self, file_path, out_file_path=None):
+    def filter_vcf(self, file_path, out_file_path=None, sample_list=None):
         """
+        :param sample_list: optional, list of sample names or sample IDs to work with
         :param file_path: input VCF file
         :param out_file_path: optional, if provided - write results to file
         :return: None if out_file_path else snps_collection dict
         """
         print('Reading input file...')
+        if sample_list is None:
+            sample_list = [0]
         vcfReader = vcf.Reader(filename=file_path)
-        if len(vcfReader.samples) != 1:
-            raise ValueError('More than one sample found in vcf!')
+
+        if all(isinstance(sample, int) for sample in sample_list):
+            sample_indices = sample_list
+        else:
+            sample_indices = []
+            for sample in sample_list:
+                sample_index = vcfReader.samples.index(sample)
+                if sample_index == -1:
+                    raise ValueError('Error: Sample {} was not found in header'.format(sample))
+                sample_indices.append(vcfReader.samples[sample_index])
+
         if out_file_path:
             with open(out_file_path, 'w') as opened_out_file:
                 vcfWriter = vcf.Writer(opened_out_file, vcfReader)
+
                 for line_number, record in enumerate(vcfReader, 1):
-                    if self._filter_record(record, line_number):
-                        vcfWriter.write_record(record)
+                    if self._filter_record(record, line_number, sample_indices):
+                        vcfWriter.write_record(record)  # FIXME: learn how to write only specified samples
         else:
             snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
             for line_number, record in enumerate(vcfReader, 1):
-                filter_result = self._filter_record(record, line_number)
+                filter_result = self._filter_record(record, line_number, sample_indices)
                 if filter_result:
-                    snps_collection[record.CHROM].append((record.start, *filter_result))
+                    for result in filter_result:
+                        snps_collection[record.CHROM].append((record.start, *result))
             return snps_collection, self.chromosomes_order
 
 
