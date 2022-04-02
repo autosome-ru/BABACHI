@@ -760,16 +760,15 @@ class InputParser:
             if (maf is not None and maf < 0.05) or record.ID == '.':
                 return False
         result = []
-        if add_counts:
-            ref_read_sum = 0
-            alt_read_sum = 0
+        ref_read_sum = 0
+        alt_read_sum = 0
         for sample in samples:
             sample_ref_read_count, sample_alt_read_count = sample.data.AD
             if self.to_filter:
                 if min(sample_ref_read_count, sample_alt_read_count) < self.allele_reads_tr:
                     continue
                 if sample.data.GT != '0/1':
-                    return False  # FIXME: continue?
+                    continue
             if add_counts:
                 ref_read_sum += sample_ref_read_count
                 alt_read_sum += sample_alt_read_count
