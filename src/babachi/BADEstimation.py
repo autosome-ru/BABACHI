@@ -758,6 +758,7 @@ class InputParser:
         result = []
         ref_read_sum = 0
         alt_read_sum = 0
+        filter_out = True
         for sample in samples:
             sample_ref_read_count, sample_alt_read_count = sample.data.AD
             if self.to_filter:
@@ -765,6 +766,7 @@ class InputParser:
                     continue
                 if sample.data.GT != '0/1':
                     continue
+            filter_out = False
             if add_counts:
                 ref_read_sum += sample_ref_read_count
                 alt_read_sum += sample_alt_read_count
@@ -772,6 +774,8 @@ class InputParser:
                 result.append(
                     (sample_ref_read_count, sample_alt_read_count)
                 )
+        if filter_out:
+            return False
         if add_counts:
             result.append(
                 (ref_read_sum, alt_read_sum)
