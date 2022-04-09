@@ -50,6 +50,8 @@ import logging
 import math
 import multiprocessing as mp
 import re
+import sys
+
 import numpy as np
 import vcf
 from numba import njit
@@ -1061,10 +1063,14 @@ def segmentation_start():
             level = logging.DEBUG
         else:
             level = logging.INFO
-        logging.basicConfig(
-            level=level,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
+        root = logging.getLogger()
+        root.setLevel(level)
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(level)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
+
         mode = 'corrected'
         t = time.perf_counter()
         GS = GenomeSegmentator(snps_collection=snps_collection,
