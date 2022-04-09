@@ -503,17 +503,17 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         if self.total_snps_count == 0:
             return
 
-        logger.debug('Constructing initial SNP-wise likelihoods...')
+        self.gs.logger.debug('Constructing initial SNP-wise likelihoods...')
         self.construct_initial_likelihood_matrices()
         atomic_regions_limits = self.split_into_overlapping_regions(self.candidates_count + 1,
                                                                     self.gs.atomic_region_length,
                                                                     self.gs.overlap)
         boundary_set = set()
         counter = 0
-        logger.debug('Segmenting atomic regions:')
+        self.gs.logger.debug('Segmenting atomic regions:')
         for first, last in atomic_regions_limits:
             counter += 1
-            logger.debug(
+            self.gs.logger.debug(
                     'Making {} out of {} atomic region{} from SNP {} to {} for {} (subchromosome {} of {}).'.format(
                         counter, len(atomic_regions_limits), 's' * bool((len(atomic_regions_limits) - 1)),
                         first, last, self.chromosome_segmentation.chromosome,
@@ -524,7 +524,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
             boundary_set |= set(atomic_region_segmentation.boundaries_indexes)
         self.candidate_numbers = sorted(list(boundary_set))
         self.candidates_count = len(self.candidate_numbers)
-        logger.debug('Unique SNPs positions in subchromosome {}: {}'.format(self.index_in_chromosome,
+        self.gs.logger.debug('Unique SNPs positions in subchromosome {}: {}'.format(self.index_in_chromosome,
                                                                          self.unique_snp_positions))
 
         self.estimate()
@@ -586,7 +586,7 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self):
-        logger.info('Processing SNPs in {}'.format(self.chromosome))
+        self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
             return self
 
@@ -598,7 +598,7 @@ class ChromosomeSegmentation:  # chromosome
             self.segments_container.boundaries_positions.append(self.snps_positions[0])
         else:
             self.segments_container.boundaries_positions.append((1, self.snps_positions[0]))
-        logger.debug(
+        self.gs.logger.debug(
                 'Stage 1 subchromosomes (start SNP index, end SNP index): {}'.format(
                     self.get_sub_chromosomes_slices()))
 
@@ -619,7 +619,7 @@ class ChromosomeSegmentation:  # chromosome
                                                            self.snps_positions[st: ed], part)
                 start_t = time.perf_counter()
                 sub_chromosome.estimate_sub_chr()
-                logger.debug('Subchromosome time: {}, subchromosome SNPs: {}'.format(
+                self.gs.logger.debug('Subchromosome time: {}, subchromosome SNPs: {}'.format(
                         time.perf_counter() - start_t, unique_positions
                     ))
 
@@ -633,7 +633,7 @@ class ChromosomeSegmentation:  # chromosome
         else:
             self.segments_container.boundaries_positions.append((self.snps_positions[-1] + 1, self.length))
 
-        logger.debug(
+        self.gs.logger.debug(
                 '\nEstimated BADs: {}\nSNP counts: {}\nSNP IDs counts: {}\nCritical gap: {:.0f}bp'
                 '\nBoundaries positions (location[deletion length (if any)]): {}'.format(
                     '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
@@ -644,7 +644,7 @@ class ChromosomeSegmentation:  # chromosome
                                                                                 (int, float, np.int_, np.float_)) else (
                             '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0] / 1000000, (x[1] - x[0]) / 1000000)),
                         self.segments_container.boundaries_positions)) + ']'))
-        logger.debug('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
+        self.gs.logger.debug('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
         return self
 
 
@@ -654,8 +654,9 @@ class GenomeSegmentator:  # gs
                  b_penalty=4, prior=None, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
                  post_seg_filter=0,
                  jobs=1,
-                 atomic_region_size=600, chr_filter=100, subchr_filter=3):
+                 atomic_region_size=600, chr_filter=100, subchr_filter=3, logger=None):
 
+        self.logger = logger
         self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
         self.scoring_mode = scoring_mode  # marginal or maximum
         self.b_penalty = b_penalty  # boundary penalty coefficient k ('CAIC' * k)
@@ -691,10 +692,10 @@ class GenomeSegmentator:  # gs
 
         for chromosome in self.chromosomes_order:
             chr_segmentation = ChromosomeSegmentation(self, chromosome, ChromosomePosition.chromosomes[chromosome] - 1)
-            logger.debug('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
+            self.logger.debug('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
             self.chr_segmentations.append(chr_segmentation)
         else:
-            logger.debug('\n')
+            self.logger.debug('-----------------------------------------')
 
     def start_chromosome(self, j):
         return self.chr_segmentations[j].estimate_chr()
@@ -734,10 +735,11 @@ class GenomeSegmentator:  # gs
 
 
 class InputParser:
-    def __init__(self, allele_reads_tr=5, force_sort=False, to_filter=True):
+    def __init__(self, allele_reads_tr=5, force_sort=False, to_filter=True, logger=None):
         self.allele_reads_tr = allele_reads_tr
         self.to_filter = to_filter
         self.force_sort = force_sort
+        self.logger = logger
         if force_sort:
             self.chromosomes_order = ChromosomePosition.sorted_chromosomes
         else:
@@ -749,7 +751,7 @@ class InputParser:
         else:
             samples = record.samples
         if record.CHROM not in ChromosomePosition.chromosomes:
-            logger.error('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
+            self.logger.error('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
             return False
         if self.to_filter:
             if len(record.ALT) != 1:
@@ -796,7 +798,7 @@ class InputParser:
         :param out_file_path: optional, if provided - write results to file
         :return: None if out_file_path else snps_collection dict
         """
-        logger.info('Reading input file...')
+        self.logger.info('Reading input file...')
         vcfReader = vcf.Reader(filename=file_path)
 
         if sample_list is None:
@@ -1036,10 +1038,25 @@ def segmentation_start():
     except SchemaError as e:
         print(__doc__)
         exit('Error: {}'.format(e))
+
+    verbose = not args['--quiet']
+    if verbose:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+    logger = logging.getLogger(__name__)
+    logger.setLevel(level)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(level)
+    formatter = logging.Formatter('%(asctime)s::%(levelname)s::%(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
     input_parser = InputParser(
         allele_reads_tr=int(args['--allele-reads-tr']),
         force_sort=args['--force-sort'],
-        to_filter=not args['--no-filter'] or args['filter']
+        to_filter=not args['--no-filter'] or args['filter'],
+        logger=logger
     )
     full_name = args['<file>']
     file_name, ext = os.path.splitext(os.path.basename(full_name))
@@ -1060,18 +1077,6 @@ def segmentation_start():
     if not args['visualize']:
         badmap_file_path = make_file_path_from_dir(args['--output'], file_name)
 
-        verbose = not args['--quiet']
-        if verbose:
-            level = logging.DEBUG
-        else:
-            level = logging.INFO
-        logger.setLevel(level)
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(level)
-        formatter = logging.Formatter('%(asctime)s::%(levelname)s::%(message)s')
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
         mode = 'corrected'
         t = time.perf_counter()
         GS = GenomeSegmentator(snps_collection=snps_collection,
@@ -1087,7 +1092,8 @@ def segmentation_start():
                                atomic_region_size=args['--atomic-region-size'],
                                chr_filter=args['--chr-min-snps'],
                                subchr_filter=args['--subchr-filter'],
-                               jobs=args['--jobs']
+                               jobs=args['--jobs'],
+                               logger=logger,
                                )
         try:
             GS.estimate_BAD()
