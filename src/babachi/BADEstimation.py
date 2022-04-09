@@ -64,8 +64,6 @@ from abc import ABC, abstractmethod
 from docopt import docopt
 from .visualize_segmentation import init_from_snps_collection
 
-logger = mp.get_logger()
-
 
 # TODO check if input sorted
 class BADSegmentsContainer:
@@ -1051,7 +1049,7 @@ def segmentation_start():
         level = logging.DEBUG
     else:
         level = logging.INFO
-    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=level)
+    logging.basicConfig(format='%(asctime)s  %(levelname)s  %(message)s', level=level)
     logger = logging.getLogger(__name__)
     set_logger_config(logger, level)
 
