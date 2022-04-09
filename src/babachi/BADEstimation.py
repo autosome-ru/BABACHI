@@ -965,7 +965,7 @@ def set_logger_config(logger, level):
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
-        formatter = logging.Formatter('%(asctime)s::%(levelname)s::%(message)s')
+        formatter = logging.Formatter('%(asctime)s  %(levelname)s  %(message)s')
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
