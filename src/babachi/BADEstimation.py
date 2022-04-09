@@ -31,6 +31,7 @@ Optional arguments:
     -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
 
+    -p <string>, --prior <prior-string>     Prior to use. uniform or geometric_<float> [default: uniform]
     -s <string>, --states <states-string>   States string [default: 1,2,3,4,5,6]
     -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
@@ -970,6 +971,41 @@ def set_logger_config(logger, level):
         logger.addHandler(handler)
 
 
+def validate_prior(string):
+    if string == 'uniform':
+        return True
+    elif string.startswith('geometric_'):
+        try:
+            float(string.split('_')[1])
+        except ValueError:
+            return False
+        return True
+    else:
+        return False
+
+
+def get_prior(string, states):
+    if string == 'uniform':
+        return None
+    p = float(string.split('_')[1])
+    minimum_ploidy = {
+        1: 2,
+        4 / 3: 7,
+        3 / 2: 5,
+        2: 3,
+        5 / 2: 7,
+        3: 4,
+        4: 5,
+        5: 6,
+        6: 7,
+    }
+    return {
+        state:
+            p ** (minimum_ploidy[state] - 1)
+        for state in states
+    }
+
+
 def segmentation_start():
     args = docopt(__doc__)
     # FIXME TEST
@@ -991,6 +1027,10 @@ def segmentation_start():
         '--min-seg-bp': And(
             Use(int),
             Const(lambda x: x >= 0), error='Min segment length coefficient should be non negative integer'
+        ),
+        '--prior': Const(
+            validate_prior,
+            error='Invalid prior string. Must be "uniform" or "geometric_<float>"'
         ),
         '--badmap': Or(
             Const(lambda x: x is None and not args['visualize']),
@@ -1097,9 +1137,10 @@ def segmentation_start():
                                atomic_region_size=args['--atomic-region-size'],
                                chr_filter=args['--chr-min-snps'],
                                subchr_filter=args['--subchr-filter'],
+                               prior=get_prior(args['--prior'], args['--states']),
                                jobs=args['--jobs'],
                                logger=logger,
-                               logger_level=level,  # workaround for mp loggging
+                               logger_level=level,  # workaround for mp logging
                                )
         try:
             GS.estimate_BAD()
