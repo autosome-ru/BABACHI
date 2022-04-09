@@ -1013,6 +1013,7 @@ def segmentation_start():
     # FIXME TEST
     if args['--test']:
         args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests', 'test.tsv')
+    print(args['--output'])
 
     schema = Schema({
         '<file>': And(
@@ -1049,7 +1050,7 @@ def segmentation_start():
                 Const(lambda x: not os.path.exists(x)),
                 Const(lambda x: os.access(os.path.dirname(x) if os.path.dirname(x) != '' else '.', os.W_OK),
                       error='No write permissions')
-            ), error='Incorrect output file'
+            )
         ),
         '--states': Use(
             check_states, error='''Incorrect value for --states.
@@ -1085,11 +1086,13 @@ def segmentation_start():
         '--ext': str,
         str: bool
     })
+    print(args['--output'])
     try:
         args = schema.validate(args)
     except SchemaError as e:
         print(__doc__)
         exit('Error: {}'.format(e))
+    print(args['--output'])
 
     verbose = not args['--quiet']
     if verbose:
