@@ -586,7 +586,8 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self):
-        self.gs.logger.warning('Processing SNPs in {}'.format(self.chromosome))
+        set_logger_config(self.gs.logger, self.gs.logger_level)
+        self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
             return self
 
@@ -654,9 +655,10 @@ class GenomeSegmentator:  # gs
                  b_penalty=4, prior=None, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
                  post_seg_filter=0,
                  jobs=1,
-                 atomic_region_size=600, chr_filter=100, subchr_filter=3, logger=None):
+                 atomic_region_size=600, chr_filter=100, subchr_filter=3, logger=None, logger_level=logging.INFO):
 
         self.logger = logger
+        self.logger_level = logger_level
         self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
         self.scoring_mode = scoring_mode  # marginal or maximum
         self.b_penalty = b_penalty  # boundary penalty coefficient k ('CAIC' * k)
@@ -960,6 +962,15 @@ def make_file_path_from_dir(out_path, file_name, ext='bed'):
         return out_path
 
 
+def set_logger_config(logger, level):
+    logger.setLevel(level)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(level)
+    formatter = logging.Formatter('%(asctime)s::%(levelname)s::%(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+
 def segmentation_start():
     args = docopt(__doc__)
     # FIXME TEST
@@ -1045,12 +1056,7 @@ def segmentation_start():
     else:
         level = logging.INFO
     logger = logging.getLogger(__name__)
-    logger.setLevel(level)
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(level)
-    formatter = logging.Formatter('%(asctime)s::%(levelname)s::%(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    set_logger_config(logger, level)
 
     input_parser = InputParser(
         allele_reads_tr=int(args['--allele-reads-tr']),
@@ -1094,6 +1100,7 @@ def segmentation_start():
                                subchr_filter=args['--subchr-filter'],
                                jobs=args['--jobs'],
                                logger=logger,
+                               logger_level=level,  # workaround for mp loggging
                                )
         try:
             GS.estimate_BAD()
