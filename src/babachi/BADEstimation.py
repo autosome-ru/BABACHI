@@ -64,6 +64,8 @@ from abc import ABC, abstractmethod
 from docopt import docopt
 from .visualize_segmentation import init_from_snps_collection
 
+logger = logging.getLogger(__name__)
+
 
 # TODO check if input sorted
 class BADSegmentsContainer:
