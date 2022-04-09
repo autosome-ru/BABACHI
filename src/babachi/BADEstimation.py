@@ -44,7 +44,7 @@ Visualization:
     --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
                                             Will create a directory in output path for the <ext> visualizations
     -z, --zip                               Zip visualizations directory
-    -e <ext>, --ext <ext>                   Extension to save visualizations with [default: .svg]
+    -e <ext>, --ext <ext>                   Extension to save visualizations with [default: svg]
 """
 import logging
 import math
