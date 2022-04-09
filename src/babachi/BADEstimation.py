@@ -586,7 +586,6 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self):
-        logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=self.gs.logger_level)
         set_logger_config(self.gs.logger, self.gs.logger_level)
 
         self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
