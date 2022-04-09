@@ -2,7 +2,7 @@
 Usage:
     babachi (<file> | --test) [options]
     babachi visualize <file> (-b <badmap>| --badmap <badmap>) [options]
-    babachi filter <file> [-O <path> -a <int>]
+    babachi filter <file> [options]
 
 Arguments:
     <file>            Path to input VCF file. Expected to be sorted be (chr, pos)
@@ -1009,13 +1009,10 @@ def get_prior(string, states):
 
 
 def segmentation_start():
-    print('start')
     args = docopt(__doc__)
-    print('continue')
     # FIXME TEST
     if args['--test']:
         args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests', 'test.tsv')
-    print(args['--output'])
 
     schema = Schema({
         '<file>': And(
@@ -1088,13 +1085,11 @@ def segmentation_start():
         '--ext': str,
         str: bool
     })
-    print(args['--output'])
     try:
         args = schema.validate(args)
     except SchemaError as e:
         print(__doc__)
         exit('Error: {}'.format(e))
-    print(args['--output'])
 
     verbose = not args['--quiet']
     if verbose:
