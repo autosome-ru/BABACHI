@@ -964,11 +964,12 @@ def make_file_path_from_dir(out_path, file_name, ext='bed'):
 
 def set_logger_config(logger, level):
     logger.setLevel(level)
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(level)
-    formatter = logging.Formatter('%(asctime)s::%(levelname)s::%(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(level)
+        formatter = logging.Formatter('%(asctime)s::%(levelname)s::%(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
 
 
 def segmentation_start():
