@@ -501,17 +501,17 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         if self.total_snps_count == 0:
             return
 
-        self.gs.logger.debug('Constructing initial SNP-wise likelihoods...')
+        self.chromosome_segmentation.logger.debug('Constructing initial SNP-wise likelihoods...')
         self.construct_initial_likelihood_matrices()
         atomic_regions_limits = self.split_into_overlapping_regions(self.candidates_count + 1,
                                                                     self.gs.atomic_region_length,
                                                                     self.gs.overlap)
         boundary_set = set()
         counter = 0
-        self.gs.logger.debug('Segmenting atomic regions:')
+        self.chromosome_segmentation.logger.debug('Segmenting atomic regions:')
         for first, last in atomic_regions_limits:
             counter += 1
-            self.gs.logger.debug(
+            self.chromosome_segmentation.logger.debug(
                     'Making {} out of {} atomic region{} from SNP {} to {} for {} (subchromosome {} of {}).'.format(
                         counter, len(atomic_regions_limits), 's' * bool((len(atomic_regions_limits) - 1)),
                         first, last, self.chromosome_segmentation.chromosome,
@@ -522,7 +522,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
             boundary_set |= set(atomic_region_segmentation.boundaries_indexes)
         self.candidate_numbers = sorted(list(boundary_set))
         self.candidates_count = len(self.candidate_numbers)
-        self.gs.logger.debug('Unique SNPs positions in subchromosome {}: {}'.format(self.index_in_chromosome,
+        self.chromosome_segmentation.logger.debug('Unique SNPs positions in subchromosome {}: {}'.format(self.index_in_chromosome,
                                                                          self.unique_snp_positions))
 
         self.estimate()
@@ -531,6 +531,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
 
 class ChromosomeSegmentation:  # chromosome
     def __init__(self, genome_segmentator, chromosome, length=0):
+        self.logger = None
         self.gs = genome_segmentator
 
         self.chromosome = chromosome  # name
@@ -584,9 +585,10 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self):
-        set_logger_config(self.gs.logger, self.gs.logger_level)
+        self.logger = logging.getLogger(__name__)
+        set_logger_config(self.logger, self.gs.logger_level)
 
-        self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
+        self.logger.info('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
             return self
 
@@ -598,7 +600,7 @@ class ChromosomeSegmentation:  # chromosome
             self.segments_container.boundaries_positions.append(self.snps_positions[0])
         else:
             self.segments_container.boundaries_positions.append((1, self.snps_positions[0]))
-        self.gs.logger.debug(
+        self.logger.debug(
                 'Stage 1 subchromosomes (start SNP index, end SNP index): {}'.format(
                     self.get_sub_chromosomes_slices()))
 
@@ -619,7 +621,7 @@ class ChromosomeSegmentation:  # chromosome
                                                            self.snps_positions[st: ed], part)
                 start_t = time.perf_counter()
                 sub_chromosome.estimate_sub_chr()
-                self.gs.logger.debug('Subchromosome time: {}, subchromosome SNPs: {}'.format(
+                self.logger.debug('Subchromosome time: {}, subchromosome SNPs: {}'.format(
                         time.perf_counter() - start_t, unique_positions
                     ))
 
@@ -633,7 +635,7 @@ class ChromosomeSegmentation:  # chromosome
         else:
             self.segments_container.boundaries_positions.append((self.snps_positions[-1] + 1, self.length))
 
-        self.gs.logger.debug(
+        self.logger.debug(
                 '\nEstimated BADs: {}\nSNP counts: {}\nSNP IDs counts: {}\nCritical gap: {:.0f}bp'
                 '\nBoundaries positions (location[deletion length (if any)]): {}'.format(
                     '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
@@ -644,7 +646,7 @@ class ChromosomeSegmentation:  # chromosome
                                                                                 (int, float, np.int_, np.float_)) else (
                             '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0] / 1000000, (x[1] - x[0]) / 1000000)),
                         self.segments_container.boundaries_positions)) + ']'))
-        self.gs.logger.debug('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
+        self.logger.debug('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
         return self
 
 
