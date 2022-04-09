@@ -1063,13 +1063,7 @@ def segmentation_start():
             level = logging.DEBUG
         else:
             level = logging.INFO
-        root = logging.getLogger()
-        root.setLevel(level)
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(level)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        root.addHandler(handler)
+        logging.basicConfig(level=level)
 
         mode = 'corrected'
         t = time.perf_counter()
