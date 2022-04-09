@@ -586,9 +586,8 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self):
-        # FIXME workaround for changing logger config in mp
-        if self.gs.logger.level == logging.WARNING:
-            set_logger_config(self.gs.logger, self.gs.logger_level)
+        logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=self.gs.logger_level)
+        set_logger_config(self.gs.logger, self.gs.logger_level)
 
         self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
@@ -967,11 +966,6 @@ def make_file_path_from_dir(out_path, file_name, ext='bed'):
 
 def set_logger_config(logger, level):
     logger.setLevel(level)
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(level)
-    formatter = logging.Formatter('%(asctime)s::%(levelname)s::%(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
 
 
 def segmentation_start():
@@ -1058,6 +1052,7 @@ def segmentation_start():
         level = logging.DEBUG
     else:
         level = logging.INFO
+    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=level)
     logger = logging.getLogger(__name__)
     set_logger_config(logger, level)
 
