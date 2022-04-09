@@ -1009,7 +1009,9 @@ def get_prior(string, states):
 
 
 def segmentation_start():
+    print('start')
     args = docopt(__doc__)
+    print('continue')
     # FIXME TEST
     if args['--test']:
         args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests', 'test.tsv')
