@@ -9,8 +9,9 @@ Arguments:
     <path>            Path to file
     <int>             Non negative integer
     <float>           Non negative number
-    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3).
+    <states-string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3).
                       Each state must be >= 1
+    <samples-string>  Comma-separated sample names or indices
 
 
 Required arguments:
@@ -21,6 +22,7 @@ Required arguments:
 Optional arguments:
     -h, --help                              Show help
     -q, --quiet                             Suppress log messages
+    -l, --sample-list <samples-string>      Comma-separated sample names or integer indices to use in input VCF
     -n, --no-filter                         Skip filtering of input file
     -f, --force-sort                        Chromosomes will be sorted in numerical order
     -j <int>, --jobs <int>                  Number of parallel jobs to use,
@@ -29,7 +31,7 @@ Optional arguments:
     -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
 
-    -s <string>, --states <string>          States string [default: 1,2,3,4,5,6]
+    -s <string>, --states <states-string>   States string [default: 1,2,3,4,5,6]
     -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
     -R <int>, --min-seg-bp <int>            Only allow segments containing R or more base pairs [default: 1000]
@@ -747,7 +749,10 @@ class InputParser:
             self.chromosomes_order = []
 
     def _filter_record(self, record, line_number, sample_id_list, add_counts=False):
-        samples = [record.samples[sample_id] for sample_id in sample_id_list]
+        if sample_id_list is not None:
+            samples = [record.samples[sample_id] for sample_id in sample_id_list]
+        else:
+            samples = record.samples
         if record.CHROM not in ChromosomePosition.chromosomes:
             print('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
             return False
@@ -793,11 +798,11 @@ class InputParser:
         :return: None if out_file_path else snps_collection dict
         """
         print('Reading input file...')
-        if sample_list is None:
-            sample_list = [0]
         vcfReader = vcf.Reader(filename=file_path)
 
-        if all(isinstance(sample, int) for sample in sample_list):
+        if sample_list is None:
+            sample_indices = None
+        elif all(isinstance(sample, int) for sample in sample_list):
             sample_indices = sample_list
         else:
             sample_indices = []
@@ -851,13 +856,31 @@ def convert_frac_to_float(string):
 
 def check_states(string):
     if not string:
-        return False
+        raise ValueError
     string = string.strip().split(',')
     ret_val = list(map(convert_frac_to_float, string))
     if not all(ret_val):
-        return False
+        raise ValueError
     else:
         return ret_val
+
+
+def check_samples(string):
+    if not string:
+        raise ValueError
+    string = string.strip().split(',')
+    int_conv = []
+    for sample in string:
+        try:
+            int_elem = int(sample)
+            if int_elem >= 0:
+                int_conv.append(int_elem)
+        except ValueError:
+            pass
+    if len(int_conv) == len(string):
+        return int_conv
+    else:
+        return string
 
 
 @njit(cache=True)
@@ -979,6 +1002,9 @@ def segmentation_start():
             check_states, error='''Incorrect value for --states.
             Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
         ),
+        '--sample-list': Use(
+            check_samples, error='Invalid sample list'
+        ),
         '--allele-reads-tr': And(
             Use(int),
             Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'
@@ -1019,11 +1045,13 @@ def segmentation_start():
         if args['filter']:
             input_parser.filter_vcf(file_path=full_name,
                                     out_file_path=make_file_path_from_dir(args['--output'], file_name,
-                                                                          'filtered.' + ext[1:]))
+                                                                          'filtered.' + ext[1:]),
+                                    sample_list=args['--sample-list'])
             exit(0)
             return
         else:
-            snps_collection, chromosomes_order = input_parser.filter_vcf(file_path=full_name)
+            snps_collection, chromosomes_order = input_parser.filter_vcf(file_path=full_name,
+                                                                         sample_list=args['--sample-list'])
     except Exception as e:
         raise ValueError("Can not read the input file", e.args)
 
