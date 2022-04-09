@@ -587,6 +587,7 @@ class ChromosomeSegmentation:  # chromosome
     def estimate_chr(self):
         self.logger = logging.getLogger(__name__)
         set_logger_config(self.logger, self.gs.logger_level)
+        print(__name__)
 
         self.logger.info('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
@@ -965,6 +966,9 @@ def make_file_path_from_dir(out_path, file_name, ext='bed'):
 
 def set_logger_config(logger, level):
     logger.setLevel(level)
+    print(logger)
+    print(logger.level)
+    print(logger.handlers)
 
 
 def segmentation_start():
