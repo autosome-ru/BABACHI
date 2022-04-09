@@ -1066,9 +1066,9 @@ def segmentation_start():
         else:
             level = logging.INFO
         logger.setLevel(level)
-        handler = logger.StreamHandler(sys.stdout)
+        handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
-        formatter = logger.Formatter('%(asctime)s::%(levelname)s::%(message)s')
+        formatter = logging.Formatter('%(asctime)s::%(levelname)s::%(message)s')
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
