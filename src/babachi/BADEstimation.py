@@ -1049,7 +1049,7 @@ def segmentation_start():
                 Const(lambda x: not os.path.exists(x)),
                 Const(lambda x: os.access(os.path.dirname(x) if os.path.dirname(x) != '' else '.', os.W_OK),
                       error='No write permissions')
-            ),
+            ), error='Incorrect output file'
         ),
         '--states': Use(
             check_states, error='''Incorrect value for --states.
