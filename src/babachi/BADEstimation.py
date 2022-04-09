@@ -586,7 +586,10 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self):
-        set_logger_config(self.gs.logger, self.gs.logger_level)
+        # FIXME workaround for changing logger config in mp
+        if self.gs.logger.level == logging.WARNING:
+            set_logger_config(self.gs.logger, self.gs.logger_level)
+
         self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
             return self
