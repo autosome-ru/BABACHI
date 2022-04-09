@@ -997,8 +997,11 @@ def segmentation_start():
             check_states, error='''Incorrect value for --states.
             Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
         ),
-        '--sample-list': Use(
-            check_samples, error='Invalid sample list'
+        '--sample-list': Or(
+            Use(
+                check_samples, error='Invalid sample list'
+            ),
+            Const(lambda x: x is None),
         ),
         '--allele-reads-tr': And(
             Use(int),
