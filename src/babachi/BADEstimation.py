@@ -800,7 +800,6 @@ class InputParser:
         :param out_file_path: optional, if provided - write results to file
         :return: None if out_file_path else snps_collection dict
         """
-        print(self.logger)
         self.logger.info('Reading input file...')
         vcfReader = vcf.Reader(filename=file_path)
 
