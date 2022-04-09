@@ -12,6 +12,7 @@ Arguments:
     <states-string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3).
                       Each state must be >= 1
     <samples-string>  Comma-separated sample names or indices
+    <prior-string>    "uniform" or "geometric_<float>" where 0 < float < 1
 
 
 Required arguments:
@@ -799,6 +800,7 @@ class InputParser:
         :param out_file_path: optional, if provided - write results to file
         :return: None if out_file_path else snps_collection dict
         """
+        print(self.logger)
         self.logger.info('Reading input file...')
         vcfReader = vcf.Reader(filename=file_path)
 
