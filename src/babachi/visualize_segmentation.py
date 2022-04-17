@@ -9,35 +9,6 @@ from zipfile import ZipFile
 from .helpers import ChromosomePosition
 
 
-def read_cosmic(cosmic_file, cosmic_line):
-    cosmics = {}
-    if cosmic_file is not None and cosmic_line is not None:
-        cosmic = pd.read_table(cosmic_file, low_memory=False)
-        cosmic.columns = ['#sample_name', 'chr', 'startpos', 'endpos', 'minorCN', 'totalCN']
-        for chromosome in ChromosomePosition.chromosomes:
-            chr_cosmic = cosmic.loc[
-                (cosmic['#sample_name'] == cosmic_line) &
-                (cosmic['chr'] == chromosome) &
-                (cosmic['minorCN'] != 0)
-                ].copy()
-            chr_cosmic['chr'] = chr_cosmic['chr']
-            chr_cosmic['startpos'] = chr_cosmic['startpos'].astype(int)
-            chr_cosmic['endpos'] = chr_cosmic['endpos'].astype(int)
-            cosmics[chromosome] = chr_cosmic
-    return cosmics
-
-
-def filter_data_by_chromosome(snps_collection, BAD_table, cosmics, chromosome):
-    column_names = ['pos', 'ref_c', 'alt_c']
-    snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection[chromosome]))))
-    BAD_segments = BAD_table[BAD_table['#chr'] == chromosome]
-    if snps.empty or BAD_segments.empty:
-        return None
-    snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
-    snps['cov'] = snps.eval('ref_c + alt_c')
-    return snps, BAD_segments, cosmics[chromosome] if cosmics else None
-
-
 def init_from_snps_collection(snps_collection, BAD_file,
                               to_zip=False,
                               verbose=True, ext='svg',
@@ -77,6 +48,35 @@ def init_from_snps_collection(snps_collection, BAD_file,
             for file in os.listdir(out_path):
                 if file.endswith(ext):
                     zip_archive.write(os.path.join(out_path, file))
+
+
+def read_cosmic(cosmic_file, cosmic_line):
+    cosmics = {}
+    if cosmic_file is not None and cosmic_line is not None:
+        cosmic = pd.read_table(cosmic_file, low_memory=False)
+        cosmic.columns = ['#sample_name', 'chr', 'startpos', 'endpos', 'minorCN', 'totalCN']
+        for chromosome in ChromosomePosition.chromosomes:
+            chr_cosmic = cosmic.loc[
+                (cosmic['#sample_name'] == cosmic_line) &
+                (cosmic['chr'] == chromosome) &
+                (cosmic['minorCN'] != 0)
+                ].copy()
+            chr_cosmic['chr'] = chr_cosmic['chr']
+            chr_cosmic['startpos'] = chr_cosmic['startpos'].astype(int)
+            chr_cosmic['endpos'] = chr_cosmic['endpos'].astype(int)
+            cosmics[chromosome] = chr_cosmic
+    return cosmics
+
+
+def filter_data_by_chromosome(snps_collection, BAD_table, cosmics, chromosome):
+    column_names = ['pos', 'ref_c', 'alt_c']
+    snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection[chromosome]))))
+    BAD_segments = BAD_table[BAD_table['#chr'] == chromosome]
+    if snps.empty or BAD_segments.empty:
+        return None
+    snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
+    snps['cov'] = snps.eval('ref_c + alt_c')
+    return snps, BAD_segments, cosmics[chromosome] if cosmics else None
 
 
 def setup_plot():
