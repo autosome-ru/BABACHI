@@ -67,7 +67,6 @@ def setup_plot(chromosome, y_min=0.8, y_max=6):
     fig, ax = plt.subplots()
     fig.tight_layout(rect=[0, 0.01, 0.95, 1])
     plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
-    plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
 
     ax.set_xlim(0, ChromosomePosition.chromosomes[chromosome])
     ax.set_ylim(y_min, y_max)
