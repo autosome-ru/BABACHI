@@ -67,18 +67,6 @@ def setup_plot(chromosome, y_min=0.8, y_max=6):
     fig, ax = plt.subplots()
     fig.tight_layout(rect=[0, 0.01, 0.95, 1])
     plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
-
-    ax.set_xlim(0, ChromosomePosition.chromosomes[chromosome])
-    ax.set_ylim(y_min, y_max)
-    ax.grid(which='major', axis='both')
-    ax.set_xticklabels([])
-    ax.set_yticks(list(range(1, int(y_max) + 1)))
-    ax.text(0.99, 0.95, '{}'.format(chromosome),
-            horizontalalignment='right',
-            verticalalignment='top',
-            transform=ax.transAxes)
-    ax.set_ylabel('AD')
-    plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
     return fig, ax
 
 
@@ -100,6 +88,17 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=No
                           COSMIC_color=COSMIC_color,
                           BAD_lw=BAD_lw,
                           COSMIC_lw=COSMIC_lw)
+    ax.set_xlim(0, ChromosomePosition.chromosomes[chromosome])
+    ax.set_ylim(y_min, y_max)
+    ax.grid(which='major', axis='both')
+    ax.set_xticklabels([])
+    ax.set_yticks(list(range(1, int(y_max) + 1)))
+    ax.text(0.99, 0.95, '{}'.format(chromosome),
+            horizontalalignment='right',
+            verticalalignment='top',
+            transform=ax.transAxes)
+    ax.set_ylabel('AD')
+    plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
     plt.savefig(out_path, dpi=300)
     plt.close(fig)
 
