@@ -63,11 +63,25 @@ def init_from_snps_collection(snps_collection, BAD_file,
                     zip_archive.write(os.path.join(out_path, file))
 
 
-def setup_plot(chromosome, y_min=0.8, y_max=6):
+def setup_plot():
     fig, ax = plt.subplots()
     fig.tight_layout(rect=[0, 0.01, 0.95, 1])
     plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
     return fig, ax
+
+
+def post_draw_settings(ax, chromosome, y_min=0.8, y_max=6):
+    ax.set_xlim(0, ChromosomePosition.chromosomes[chromosome])
+    ax.set_ylim(y_min, y_max)
+    ax.grid(which='major', axis='both')
+    ax.set_xticklabels([])
+    ax.set_yticks(list(range(1, int(y_max) + 1)))
+    ax.text(0.99, 0.95, '{}'.format(chromosome),
+            horizontalalignment='right',
+            verticalalignment='top',
+            transform=ax.transAxes)
+    ax.set_ylabel('AD')
+    plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
 
 
 def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=None):
@@ -80,7 +94,7 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=No
     delta_y = 0.05
     if BAD_segments.empty:
         return
-    fig, ax = setup_plot(chromosome, y_min=y_min, y_max=y_max)
+    fig, ax = setup_plot()
     add_snps(ax, snps, y_max, delta_y)
     add_babachi_estimates(fig, ax, chromosome,
                           BAD_segments, chr_cosmic,
@@ -88,17 +102,8 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=No
                           COSMIC_color=COSMIC_color,
                           BAD_lw=BAD_lw,
                           COSMIC_lw=COSMIC_lw)
-    ax.set_xlim(0, ChromosomePosition.chromosomes[chromosome])
-    ax.set_ylim(y_min, y_max)
-    ax.grid(which='major', axis='both')
-    ax.set_xticklabels([])
-    ax.set_yticks(list(range(1, int(y_max) + 1)))
-    ax.text(0.99, 0.95, '{}'.format(chromosome),
-            horizontalalignment='right',
-            verticalalignment='top',
-            transform=ax.transAxes)
-    ax.set_ylabel('AD')
-    plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
+    post_draw_settings(ax, chromosome, y_min=y_min, y_max=y_max)
+
     plt.savefig(out_path, dpi=300)
     plt.close(fig)
 
