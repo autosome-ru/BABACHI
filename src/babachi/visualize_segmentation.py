@@ -110,12 +110,12 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=No
     delta_y = 0.05
     fig, ax = setup_plot()
     add_snps(ax, snps, y_max, delta_y)
-    add_babachi_estimates(fig, ax, chromosome,
-                          BAD_segments, chr_cosmic,
-                          BAD_color=BAD_color,
-                          COSMIC_color=COSMIC_color,
-                          BAD_lw=BAD_lw,
-                          COSMIC_lw=COSMIC_lw)
+    add_babachi_estimations(fig, ax, chromosome,
+                            BAD_segments, chr_cosmic,
+                            BAD_color=BAD_color,
+                            COSMIC_color=COSMIC_color,
+                            BAD_lw=BAD_lw,
+                            COSMIC_lw=COSMIC_lw)
     post_draw_settings(ax, chromosome, y_min=y_min, y_max=y_max)
 
     plt.savefig(out_path, dpi=300)
@@ -131,9 +131,9 @@ def add_snps(ax, snps, y_max=6, delta_y=0.05):
                    c=snp_df['cov'], cmap=cmap, s=2, vmin=10, vmax=30)
 
 
-def add_babachi_estimates(fig, ax, chromosome, BAD_segments, chr_cosmic=None,
-                          BAD_color='#0072B2CC', COSMIC_color='#D55E00',
-                          BAD_lw=10, COSMIC_lw=4):
+def add_babachi_estimations(fig, ax, chromosome, BAD_segments, chr_cosmic=None,
+                            BAD_color='#0072B2CC', COSMIC_color='#D55E00',
+                            BAD_lw=10, COSMIC_lw=4):
     bar_positions = []
     bar_widths = []
     bar_colors = []
