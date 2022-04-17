@@ -38,10 +38,12 @@ def init_from_snps_collection(snps_collection, BAD_file,
         result = filter_data_by_chromosome(snps_collection, BAD_table, cosmics, chromosome)
         if result is None:
             continue
-        snps, BAD_segments, cosmic_data = result
-        visualize_chromosome(os.path.join(out_path, '{}_{}.{}'.format(file_name, chromosome, ext)),
+        BAD_segments, cosmic_data, snps = result
+        visualize_chromosome(BAD_segments,
                              chromosome, snps,
-                             BAD_segments,
+                             os.path.join(out_path,
+                                          '{}_{}.{}'.format(file_name,
+                                                            chromosome, ext)),
                              cosmic_data)
     if to_zip:
         with ZipFile(out_path + '.zip', 'w') as zip_archive:
@@ -68,15 +70,22 @@ def read_cosmic(cosmic_file, cosmic_line):
     return cosmics
 
 
-def filter_data_by_chromosome(snps_collection, BAD_table, cosmics, chromosome):
-    column_names = ['pos', 'ref_c', 'alt_c']
-    snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection[chromosome]))))
+def filter_data_by_chromosome(BAD_table, chromosome, snps_collection=None,
+                              cosmics=None):
     BAD_segments = BAD_table[BAD_table['#chr'] == chromosome]
-    if snps.empty or BAD_segments.empty:
+    if BAD_segments.empty:
         return None
-    snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
-    snps['cov'] = snps.eval('ref_c + alt_c')
-    return snps, BAD_segments, cosmics[chromosome] if cosmics else None
+    if snps_collection is not None:
+        column_names = ['pos', 'ref_c', 'alt_c']
+        snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection[chromosome]))))
+        if snps.empty:
+            return None
+        snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
+        snps['cov'] = snps.eval('ref_c + alt_c')
+    else:
+        snps = None
+    cosmic = cosmics[chromosome] if cosmics else None
+    return BAD_segments, cosmic, snps
 
 
 def setup_plot():
@@ -100,7 +109,8 @@ def post_draw_settings(ax, chromosome, y_min=0.8, y_max=6):
     plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
 
 
-def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=None):
+def visualize_chromosome(BAD_segments, chromosome,
+                         snps=None, out_path=None, chr_cosmic=None):
     BAD_color = '#0072B2CC'
     COSMIC_color = '#D55E00'
     BAD_lw = 10
@@ -109,7 +119,8 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=No
     y_max = 6
     delta_y = 0.05
     fig, ax = setup_plot()
-    add_snps(ax, snps, y_max, delta_y)
+    if snps is not None:
+        add_snps(ax, snps, y_max, delta_y)
     add_babachi_estimations(fig, ax, chromosome,
                             BAD_segments, chr_cosmic,
                             BAD_color=BAD_color,
@@ -117,8 +128,10 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=No
                             BAD_lw=BAD_lw,
                             COSMIC_lw=COSMIC_lw)
     post_draw_settings(ax, chromosome, y_min=y_min, y_max=y_max)
-
-    plt.savefig(out_path, dpi=300)
+    if out_path:
+        plt.savefig(out_path, dpi=300)
+    else:
+        plt.show()
     plt.close(fig)
 
 
