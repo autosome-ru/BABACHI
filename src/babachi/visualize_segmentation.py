@@ -35,12 +35,11 @@ def init_from_snps_collection(snps_collection, BAD_file,
         if verbose:
             print('Visualizing {}'.format(chromosome))
 
-        result = filter_data_by_chromosome(snps_collection, BAD_table, cosmics, chromosome)
+        result = filter_data_by_chromosome(chromosome, BAD_table, cosmics, snps_collection)
         if result is None:
             continue
         BAD_segments, cosmic_data, snps = result
-        visualize_chromosome(BAD_segments,
-                             chromosome, snps,
+        visualize_chromosome(chromosome, BAD_segments, snps,
                              os.path.join(out_path,
                                           '{}_{}.{}'.format(file_name,
                                                             chromosome, ext)),
@@ -70,7 +69,7 @@ def read_cosmic(cosmic_file, cosmic_line):
     return cosmics
 
 
-def filter_data_by_chromosome(BAD_table, chromosome, snps_collection=None,
+def filter_data_by_chromosome(chromosome, BAD_table, snps_collection=None,
                               cosmics=None):
     BAD_segments = BAD_table[BAD_table['#chr'] == chromosome]
     if BAD_segments.empty:
@@ -109,7 +108,7 @@ def post_draw_settings(ax, chromosome, y_min=0.8, y_max=6):
     plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
 
 
-def visualize_chromosome(BAD_segments, chromosome,
+def visualize_chromosome(chromosome, BAD_segments,
                          snps=None, out_path=None, chr_cosmic=None):
     BAD_color = '#0072B2CC'
     COSMIC_color = '#D55E00'
