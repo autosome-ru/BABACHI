@@ -144,8 +144,8 @@ class BADSegmentsContainer:
 
 
 class BADSegment:
-    def __init__(self, chr, start, end, BAD, likelihoods, snps_count, total_cover, snp_id_count):
-        self.chr = chr
+    def __init__(self, chrom, start, end, BAD, likelihoods, snps_count, total_cover, snp_id_count):
+        self.chr = chrom
         self.start = start
         self.end = end
         self.BAD = BAD
@@ -265,7 +265,7 @@ class Segmentation(ABC):
 
     def initialize_boundaries_arrays(self):
         self.score = [0] * (self.candidates_count + 1)
-        self.has_boundary_cache = [[False] * self.candidates_count for i in range(self.candidates_count + 1)]
+        self.has_boundary_cache = [[False] * self.candidates_count for _ in range(self.candidates_count + 1)]
         self.best_boundaries_count = [0] * (self.candidates_count + 1)
 
     @abstractmethod
@@ -832,60 +832,6 @@ class InputParser:
             return snps_collection, self.chromosomes_order
 
 
-def convert_frac_to_float(string):
-    if re.match(r"^[1-9]+[0-9]*/[1-9]+[0-9]*$", string):
-        num, denom = string.split('/')
-        if int(denom) <= 0:
-            return False
-        else:
-            value = int(num) / int(denom)
-    elif re.match(r"^[1-9]+[0-9]*\.[1-9]+[0-9]*$", string):
-        try:
-            value = float(string)
-        except ValueError:
-            return False
-    elif re.match(r"^[1-9]+[0-9]*$", string):
-        try:
-            value = int(string)
-        except ValueError:
-            return False
-    else:
-        return False
-    if value >= 1:
-        return value
-    else:
-        return False
-
-
-def check_states(string):
-    if not string:
-        raise ValueError
-    string = string.strip().split(',')
-    ret_val = list(map(convert_frac_to_float, string))
-    if not all(ret_val):
-        raise ValueError
-    else:
-        return ret_val
-
-
-def check_samples(string):
-    if not string:
-        raise ValueError
-    string = string.strip().split(',')
-    int_conv = []
-    for sample in string:
-        try:
-            int_elem = int(sample)
-            if int_elem >= 0:
-                int_conv.append(int_elem)
-        except ValueError:
-            pass
-    if len(int_conv) == len(string):
-        return int_conv
-    else:
-        return string
-
-
 @njit(cache=True)
 def fast_find_optimal_borders(
         candidates_count,
@@ -953,6 +899,60 @@ def fast_find_optimal_borders(
     boundaries_indexes = [candidate_numbers[j] for j in range(candidates_count) if
                           has_boundary_cache[-1, j]]
     return boundaries_indexes
+
+
+def convert_frac_to_float(string):
+    if re.match(r"^[1-9]+[0-9]*/[1-9]+[0-9]*$", string):
+        num, denom = string.split('/')
+        if int(denom) <= 0:
+            return False
+        else:
+            value = int(num) / int(denom)
+    elif re.match(r"^[1-9]+[0-9]*\.[1-9]+[0-9]*$", string):
+        try:
+            value = float(string)
+        except ValueError:
+            return False
+    elif re.match(r"^[1-9]+[0-9]*$", string):
+        try:
+            value = int(string)
+        except ValueError:
+            return False
+    else:
+        return False
+    if value >= 1:
+        return value
+    else:
+        return False
+
+
+def check_states(string):
+    if not string:
+        raise ValueError
+    string = string.strip().split(',')
+    ret_val = list(map(convert_frac_to_float, string))
+    if not all(ret_val):
+        raise ValueError
+    else:
+        return ret_val
+
+
+def check_samples(string):
+    if not string:
+        raise ValueError
+    string = string.strip().split(',')
+    int_conv = []
+    for sample in string:
+        try:
+            int_elem = int(sample)
+            if int_elem >= 0:
+                int_conv.append(int_elem)
+        except ValueError:
+            pass
+    if len(int_conv) == len(string):
+        return int_conv
+    else:
+        return string
 
 
 def make_file_path_from_dir(out_path, file_name, ext='bed'):

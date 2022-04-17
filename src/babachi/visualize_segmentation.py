@@ -63,13 +63,27 @@ def init_from_snps_collection(snps_collection, BAD_file,
                     zip_archive.write(os.path.join(out_path, file))
 
 
-def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=None):
-    if BAD_segments.empty:
-        return
+def setup_plot(chromosome, y_min=0.8, y_max=6):
     fig, ax = plt.subplots()
     fig.tight_layout(rect=[0, 0.01, 0.95, 1])
     plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
+    plt.gca().xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
 
+    ax.set_xlim(0, ChromosomePosition.chromosomes[chromosome])
+    ax.set_ylim(y_min, y_max)
+    ax.grid(which='major', axis='both')
+    ax.set_xticklabels([])
+    ax.set_yticks(list(range(1, int(y_max) + 1)))
+    ax.text(0.99, 0.95, '{}'.format(chromosome),
+            horizontalalignment='right',
+            verticalalignment='top',
+            transform=ax.transAxes)
+    ax.set_ylabel('AD')
+    plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
+    return fig, ax
+
+
+def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=None):
     BAD_color = '#0072B2CC'
     COSMIC_color = '#D55E00'
     BAD_lw = 10
@@ -77,9 +91,32 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=No
     y_min = 0.8
     y_max = 6
     delta_y = 0.05
+    if BAD_segments.empty:
+        return
+    fig, ax = setup_plot(chromosome, y_min=y_min, y_max=y_max)
+    add_snps(ax, snps, y_max, delta_y)
+    add_babachi_estimates(fig, ax, chromosome,
+                          BAD_segments, chr_cosmic,
+                          BAD_color=BAD_color,
+                          COSMIC_color=COSMIC_color,
+                          BAD_lw=BAD_lw,
+                          COSMIC_lw=COSMIC_lw)
+    plt.savefig(out_path, dpi=300)
+    plt.close(fig)
 
+
+def add_snps(ax, snps, y_max=6, delta_y=0.05):
+    ref_snps = snps[snps['ref_c'] >= snps['alt_c']]
+    alt_snps = snps[snps['ref_c'] < snps['alt_c']]
     snps['AD'] = snps['AD'].apply(lambda y: y_max - delta_y if y > y_max else y)
+    for snp_df, cmap in zip((ref_snps, alt_snps), ('BuGn', 'BuPu')):
+        ax.scatter(x=snp_df['pos'], y=list(snp_df['AD']),
+                   c=snp_df['cov'], cmap=cmap, s=2, vmin=10, vmax=30)
 
+
+def add_babachi_estimates(fig, ax, chromosome, BAD_segments, chr_cosmic=None,
+                          BAD_color='#0072B2CC', COSMIC_color='#D55E00',
+                          BAD_lw=10, COSMIC_lw=4):
     bar_positions = []
     bar_widths = []
     bar_colors = []
@@ -146,7 +183,8 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=No
                 if last_end == 1:
                     cosmic_borders += [startpos - ChromosomePosition.chromosomes[chromosome] * vd]
                 else:
-                    cosmic_borders += [last_end + ChromosomePosition.chromosomes[chromosome] * vd, startpos - ChromosomePosition.chromosomes[chromosome] * vd]
+                    cosmic_borders += [last_end + ChromosomePosition.chromosomes[chromosome] * vd,
+                                       startpos - ChromosomePosition.chromosomes[chromosome] * vd]
                 cosmic_bar_colors.append('#AAAAAA')
                 COSMIC_BADs.append(None)
             else:
@@ -170,22 +208,10 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=No
                            linewidth=COSMIC_lw, color=COSMIC_color, snap=False, ms=0, mew=0,
                            solid_capstyle='butt')
 
-    ref_snps = snps[snps['ref_c'] >= snps['alt_c']]
-    alt_snps = snps[snps['ref_c'] < snps['alt_c']]
-    for snp_df, cmap in zip((ref_snps, alt_snps), ('BuGn', 'BuPu')):
-        ax.scatter(x=snp_df['pos'], y=list(snp_df['AD']), c=snp_df['cov'], cmap=cmap, s=2, vmin=10, vmax=30)
-    ax.set_xlim(0, ChromosomePosition.chromosomes[chromosome])
-    ax.set_ylim(y_min, y_max)
-    ax.grid(which='major', axis='both')
-    ax.set_xticklabels([])
-    ax.set_yticks(list(range(1, int(y_max) + 1)))
-    ax.text(0.99, 0.95, '{}'.format(chromosome),
-            horizontalalignment='right',
-            verticalalignment='top',
-            transform=ax.transAxes)
-    ax.set_ylabel('AD')
-    # plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
-
+    ax.plot([0, 0], [0, 0], color=BAD_color, label='Estimated BAD')
+    if chr_cosmic is not None and not chr_cosmic.empty:
+        ax.plot([0, 0], [0, 0], color=COSMIC_color, label='COSMIC BAD')
+    # ax.legend(loc='center left')
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("bottom", size="10%", pad=0.05)
     cax.get_yaxis().set_ticks([])
@@ -194,19 +220,9 @@ def visualize_chromosome(out_path, chromosome, snps, BAD_segments, chr_cosmic=No
     cax.bar(bar_positions, [1] * len(bar_positions), bar_widths, color=reduced_bar_colors, linewidth=0)
 
     cax.set_xlabel('Chromosome position, bp')
-    plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0), useMathText=True)
-
-    ax.plot([0, 0], [0, 0], color=BAD_color, label='Estimated BAD')
-    if chr_cosmic is not None and not chr_cosmic.empty:
-        ax.plot([0, 0], [0, 0], color=COSMIC_color, label='COSMIC BAD')
-    # ax.legend(loc='center left')
-
     ax = fig.add_axes([0.95, 0.16, 0.01, 0.75])
     cmap = plt.get_cmap('BuPu')
     norm = m_colors.Normalize(vmin=10, vmax=30)
     m_colorbar.ColorbarBase(ax, cmap=cmap,
                             norm=norm,
                             orientation='vertical')
-
-    plt.savefig(out_path, dpi=300)
-    plt.close(fig)
