@@ -78,7 +78,7 @@ def filter_data_by_chromosome(chromosome, BAD_table, snps_collection=None,
         snps['cov'] = snps.eval('ref_c + alt_c')
     else:
         snps = None
-    cosmic = cosmics[cosmics['#chr'] == chromosome] if cosmics is None else None
+    cosmic = cosmics[cosmics['#chr'] == chromosome] if cosmics is not None else None
     return BAD_segments, cosmic, snps
 
 
