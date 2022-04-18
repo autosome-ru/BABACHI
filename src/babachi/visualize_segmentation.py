@@ -59,8 +59,12 @@ def read_cosmic(cosmic_file, cosmic_line):
             (cosmic['sample_name'] == cosmic_line) &
             (cosmic['minorCN'] != 0)
             ]
+        if cosmic.empty:
+            return
+        cosmic['BAD'] = cosmic.eval('(totalCN - minorCN) / minorCN')
         cosmic['startpos'] = cosmic['startpos'].astype(int)
         cosmic['endpos'] = cosmic['endpos'].astype(int)
+        cosmic = cosmic.drop(['totalCN', 'minorCN', 'sample_name'], axis=1)
         return cosmic
 
 
@@ -138,7 +142,7 @@ def add_snps(ax, snps, y_max=6, delta_y=0.05):
                    c=snp_df['cov'], cmap=cmap, s=2, vmin=10, vmax=30)
 
 
-def add_babachi_estimations(fig, ax, chromosome, BAD_segments, chr_cosmic=None,
+def add_babachi_estimations(fig, ax, chromosome, BAD_segments, cosmic_est=None,
                             BAD_color='#0072B2CC', COSMIC_color='#D55E00',
                             BAD_lw=10, COSMIC_lw=4):
     bar_positions = []
@@ -196,13 +200,13 @@ def add_babachi_estimations(fig, ax, chromosome, BAD_segments, chr_cosmic=None,
                        solid_capstyle='butt')
 
     # cosmic
-    if chr_cosmic is not None and not chr_cosmic.empty:
+    if cosmic_est is not None and not cosmic_est.empty:
         cosmic_bar_colors = []
         vd = 1 / 500
         COSMIC_BADs = []
         cosmic_borders = []
         last_end = 1
-        for index, (sample_name, chrom, startpos, endpos, minorCN, totalCN) in chr_cosmic.iterrows():
+        for index, (chrom, startpos, endpos, BAD) in cosmic_est.iterrows():
             if startpos - last_end >= ChromosomePosition.chromosomes[chromosome] * vd * 2:
                 if last_end == 1:
                     cosmic_borders += [startpos - ChromosomePosition.chromosomes[chromosome] * vd]
@@ -216,7 +220,7 @@ def add_babachi_estimations(fig, ax, chromosome, BAD_segments, chr_cosmic=None,
                     cosmic_borders += [last_end]
             last_end = endpos
             cosmic_bar_colors.append('C2')
-            COSMIC_BADs.append((totalCN - minorCN) / minorCN)
+            COSMIC_BADs.append(BAD)
         if last_end != ChromosomePosition.chromosomes[chromosome] + 1:
             cosmic_borders += [last_end + ChromosomePosition.chromosomes[chromosome] * vd]
             cosmic_bar_colors.append('#AAAAAA')
@@ -233,7 +237,7 @@ def add_babachi_estimations(fig, ax, chromosome, BAD_segments, chr_cosmic=None,
                            solid_capstyle='butt')
 
     ax.plot([0, 0], [0, 0], color=BAD_color, label='Estimated BAD')
-    if chr_cosmic is not None and not chr_cosmic.empty:
+    if cosmic_est is not None and not cosmic_est.empty:
         ax.plot([0, 0], [0, 0], color=COSMIC_color, label='COSMIC BAD')
     # ax.legend(loc='center left')
     divider = make_axes_locatable(ax)
