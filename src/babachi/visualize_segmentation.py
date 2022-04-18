@@ -52,21 +52,16 @@ def init_from_snps_collection(snps_collection, BAD_file,
 
 
 def read_cosmic(cosmic_file, cosmic_line):
-    cosmics = {}
     if cosmic_file is not None and cosmic_line is not None:
-        cosmic = pd.read_table(cosmic_file, low_memory=False)
-        cosmic.columns = ['#sample_name', 'chr', 'startpos', 'endpos', 'minorCN', 'totalCN']
-        for chromosome in ChromosomePosition.chromosomes:
-            chr_cosmic = cosmic.loc[
-                (cosmic['#sample_name'] == cosmic_line) &
-                (cosmic['chr'] == chromosome) &
-                (cosmic['minorCN'] != 0)
-                ].copy()
-            chr_cosmic['chr'] = chr_cosmic['chr']
-            chr_cosmic['startpos'] = chr_cosmic['startpos'].astype(int)
-            chr_cosmic['endpos'] = chr_cosmic['endpos'].astype(int)
-            cosmics[chromosome] = chr_cosmic
-    return cosmics
+        cosmic = pd.read_table(cosmic_file, low_memory=False, header=None)
+        cosmic.columns = ['sample_name', '#chr', 'startpos', 'endpos', 'minorCN', 'totalCN']
+        cosmic = cosmic[
+            (cosmic['sample_name'] == cosmic_line) &
+            (cosmic['minorCN'] != 0)
+            ]
+        cosmic['startpos'] = cosmic['startpos'].astype(int)
+        cosmic['endpos'] = cosmic['endpos'].astype(int)
+        return cosmic
 
 
 def filter_data_by_chromosome(chromosome, BAD_table, snps_collection=None,
@@ -83,7 +78,7 @@ def filter_data_by_chromosome(chromosome, BAD_table, snps_collection=None,
         snps['cov'] = snps.eval('ref_c + alt_c')
     else:
         snps = None
-    cosmic = cosmics[chromosome] if cosmics else None
+    cosmic = cosmics[cosmics['#chr'] == chromosome] if cosmics else None
     return BAD_segments, cosmic, snps
 
 
