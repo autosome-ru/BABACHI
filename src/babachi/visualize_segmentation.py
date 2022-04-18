@@ -38,7 +38,7 @@ def init_from_snps_collection(snps_collection, BAD_file,
         result = filter_data_by_chromosome(chromosome, BAD_table, cosmics, snps_collection)
         if result is None:
             continue
-        BAD_segments, cosmic_data, snps = result
+        BAD_segments, snps, cosmic_data = result
         visualize_chromosome(chromosome, BAD_segments, snps,
                              os.path.join(out_path,
                                           '{}_{}.{}'.format(file_name,
@@ -79,7 +79,7 @@ def filter_data_by_chromosome(chromosome, BAD_table, snps_collection=None,
     else:
         snps = None
     cosmic = cosmics[cosmics['#chr'] == chromosome] if cosmics is not None else None
-    return BAD_segments, cosmic, snps
+    return BAD_segments, snps, cosmic
 
 
 def setup_plot():
