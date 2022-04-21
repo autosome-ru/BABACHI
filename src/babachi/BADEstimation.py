@@ -778,7 +778,7 @@ class InputParser:
                 if sample.data.GT != '0/1':
                     continue
             filter_out = False
-            if self.snp_strategy == 'SUM':
+            if self.snp_strategy == 'ADD':
                 ref_read_sum += sample_ref_read_count
                 alt_read_sum += sample_alt_read_count
             elif self.snp_strategy == 'SEP':
@@ -789,7 +789,7 @@ class InputParser:
                 raise ValueError
         if filter_out:
             return False
-        if self.snp_strategy == 'SUM':
+        if self.snp_strategy == 'ADD':
             result.append(
                 (ref_read_sum, alt_read_sum)
             )
@@ -1039,8 +1039,8 @@ def segmentation_start():
             error='Invalid prior string. Must be "uniform" or "geometric_<float>"'
         ),
         '--snp-strategy': Const(
-            lambda x: x in ('IND', 'SEP'),
-            error='SNP strategy should be either IND or SEP'
+            lambda x: x in ('ADD', 'SEP'),
+            error='SNP strategy should be either ADD or SEP'
         ),
         '--badmap': Or(
             Const(lambda x: x is None and not args['visualize']),
