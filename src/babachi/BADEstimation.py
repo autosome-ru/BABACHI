@@ -5,7 +5,7 @@ Usage:
     babachi filter <file> [options]
 
 Arguments:
-    <file>            Path to input VCF file. Expected to be sorted be (chr, pos)
+    <file>            Path to input VCF file. Expected to be sorted by (chr, pos)
     <path>            Path to file
     <int>             Non negative integer
     <float>           Non negative number
@@ -16,14 +16,16 @@ Arguments:
 
 
 Required arguments:
-    --test                                  Run segmentation on test file
     -b <path>, --badmap <path>              Input badmap file
     -O <path>, --output <path>              Output directory or file path. [default: ./]
+    --test                                  Run segmentation on test file
 
 Optional arguments:
     -h, --help                              Show help
     -q, --quiet                             Suppress log messages
     -l, --sample-list <samples-string>      Comma-separated sample names or integer indices to use in input VCF
+    -s, --snp-strategy                      Strategy to take into account SNPs on the same position.
+                                            Either add read counts 'ADD' or treat as a separate events 'SEP'. [default: SEP]
     -n, --no-filter                         Skip filtering of input file
     -f, --force-sort                        Chromosomes will be sorted in numerical order
     -j <int>, --jobs <int>                  Number of parallel jobs to use,
@@ -737,17 +739,18 @@ class GenomeSegmentator:  # gs
 
 
 class InputParser:
-    def __init__(self, allele_reads_tr=5, force_sort=False, to_filter=True, logger=None):
+    def __init__(self, allele_reads_tr=5, snp_strategy='SEP', force_sort=False, to_filter=True, logger=None):
         self.allele_reads_tr = allele_reads_tr
         self.to_filter = to_filter
         self.force_sort = force_sort
         self.logger = logger
+        self.snp_strategy = snp_strategy
         if force_sort:
             self.chromosomes_order = ChromosomePosition.sorted_chromosomes
         else:
             self.chromosomes_order = []
 
-    def _filter_record(self, record, line_number, sample_id_list, add_counts=False):
+    def _filter_record(self, record, line_number, sample_id_list):
         if sample_id_list is not None:
             samples = [record.samples[sample_id] for sample_id in sample_id_list]
         else:
@@ -775,16 +778,18 @@ class InputParser:
                 if sample.data.GT != '0/1':
                     continue
             filter_out = False
-            if add_counts:
+            if self.snp_strategy == 'SUM':
                 ref_read_sum += sample_ref_read_count
                 alt_read_sum += sample_alt_read_count
-            else:
+            elif self.snp_strategy == 'SEP':
                 result.append(
                     (sample_ref_read_count, sample_alt_read_count)
                 )
+            else:
+                raise ValueError
         if filter_out:
             return False
-        if add_counts:
+        if self.snp_strategy == 'SUM':
             result.append(
                 (ref_read_sum, alt_read_sum)
             )
@@ -1009,7 +1014,7 @@ def get_prior(string, states):
 
 def segmentation_start():
     args = docopt(__doc__)
-    # FIXME TEST
+    # FIXME UPDATE TEST VCF
     if args['--test']:
         args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests', 'test.tsv')
 
@@ -1032,6 +1037,10 @@ def segmentation_start():
         '--prior': Const(
             validate_prior,
             error='Invalid prior string. Must be "uniform" or "geometric_<float>"'
+        ),
+        '--snp-strategy': Const(
+            lambda x: x in ('IND', 'SEP'),
+            error='SNP strategy should be either IND or SEP'
         ),
         '--badmap': Or(
             Const(lambda x: x is None and not args['visualize']),
@@ -1102,6 +1111,7 @@ def segmentation_start():
         allele_reads_tr=int(args['--allele-reads-tr']),
         force_sort=args['--force-sort'],
         to_filter=not args['--no-filter'] or args['filter'],
+        snp_strategy=args['--snp-strategy'],
         logger=logger
     )
     full_name = args['<file>']
