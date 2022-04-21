@@ -23,8 +23,8 @@ Required arguments:
 Optional arguments:
     -h, --help                              Show help
     -q, --quiet                             Suppress log messages
-    -l, --sample-list <samples-string>      Comma-separated sample names or integer indices to use in input VCF
-    --snp-strategy                          Strategy to take into account SNPs on the same position.
+    --sample-list <samples-string>          Comma-separated sample names or integer indices to use in input VCF
+    --snp-strategy <snp-strategy>           Strategy to take into account SNPs on the same position.
                                             Either add read counts 'ADD' or treat as a separate events 'SEP'. [default: SEP]
     -n, --no-filter                         Skip filtering of input file
     -f, --force-sort                        Chromosomes will be sorted in numerical order
