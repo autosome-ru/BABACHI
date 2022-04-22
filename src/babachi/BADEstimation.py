@@ -70,7 +70,7 @@ from docopt import docopt
 from .visualize_segmentation import init_from_snps_collection
 from collections import namedtuple
 
-bedfile_line = namedtuple('BED file line', field_names=[
+bedfile_line = namedtuple('BED_file_line', field_names=[
     'chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts'
 ])
 
