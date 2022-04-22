@@ -57,6 +57,7 @@ import re
 import sys
 
 import numpy as np
+import pandas as pd
 import vcf
 from numba import njit
 import os.path
@@ -67,6 +68,11 @@ from .helpers import ChromosomePosition, pack, nucleotides
 from abc import ABC, abstractmethod
 from docopt import docopt
 from .visualize_segmentation import init_from_snps_collection
+from collections import namedtuple
+
+bedfile_line = namedtuple('BED file line', field_names=[
+    'chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts'
+])
 
 
 # TODO check if input sorted
@@ -516,18 +522,18 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         for first, last in atomic_regions_limits:
             counter += 1
             self.gs.logger.debug(
-                    'Making {} out of {} atomic region{} from SNP {} to {} for {} (subchromosome {} of {}).'.format(
-                        counter, len(atomic_regions_limits), 's' * bool((len(atomic_regions_limits) - 1)),
-                        first, last, self.chromosome_segmentation.chromosome,
-                        self.index_in_chromosome,
-                        len(self.chromosome_segmentation.get_sub_chromosomes_slices())))
+                'Making {} out of {} atomic region{} from SNP {} to {} for {} (subchromosome {} of {}).'.format(
+                    counter, len(atomic_regions_limits), 's' * bool((len(atomic_regions_limits) - 1)),
+                    first, last, self.chromosome_segmentation.chromosome,
+                    self.index_in_chromosome,
+                    len(self.chromosome_segmentation.get_sub_chromosomes_slices())))
             atomic_region_segmentation = AtomicRegionSegmentation(self, first, last)
             atomic_region_segmentation.estimate()
             boundary_set |= set(atomic_region_segmentation.boundaries_indexes)
         self.candidate_numbers = sorted(list(boundary_set))
         self.candidates_count = len(self.candidate_numbers)
         self.gs.logger.debug('Unique SNPs positions in subchromosome {}: {}'.format(self.index_in_chromosome,
-                                                                         self.unique_snp_positions))
+                                                                                    self.unique_snp_positions))
 
         self.estimate()
         self.estimate_BAD()
@@ -602,8 +608,8 @@ class ChromosomeSegmentation:  # chromosome
         else:
             self.segments_container.boundaries_positions.append((1, self.snps_positions[0]))
         self.gs.logger.debug(
-                'Stage 1 subchromosomes (start SNP index, end SNP index): {}'.format(
-                    self.get_sub_chromosomes_slices()))
+            'Stage 1 subchromosomes (start SNP index, end SNP index): {}'.format(
+                self.get_sub_chromosomes_slices()))
 
         for part, (st, ed) in enumerate(self.get_sub_chromosomes_slices(), 1):
             # check
@@ -623,8 +629,8 @@ class ChromosomeSegmentation:  # chromosome
                 start_t = time.perf_counter()
                 sub_chromosome.estimate_sub_chr()
                 self.gs.logger.debug('Subchromosome time: {}, subchromosome SNPs: {}'.format(
-                        time.perf_counter() - start_t, unique_positions
-                    ))
+                    time.perf_counter() - start_t, unique_positions
+                ))
 
                 self.segments_container += sub_chromosome.segments_container
             if ed != self.total_snps_count:
@@ -637,16 +643,16 @@ class ChromosomeSegmentation:  # chromosome
             self.segments_container.boundaries_positions.append((self.snps_positions[-1] + 1, self.length))
 
         self.gs.logger.debug(
-                '\nEstimated BADs: {}\nSNP counts: {}\nSNP IDs counts: {}\nCritical gap: {:.0f}bp'
-                '\nBoundaries positions (location[deletion length (if any)]): {}'.format(
-                    '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
-                    self.segments_container.snps_counts, self.segments_container.snp_id_counts,
-                    self.critical_gap_factor * self.effective_length,
-                    '[' + ', '.join(map(
-                        lambda x: '{:.2f}Mbp'.format(x / 1000000) if isinstance(x,
-                                                                                (int, float, np.int_, np.float_)) else (
-                            '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0] / 1000000, (x[1] - x[0]) / 1000000)),
-                        self.segments_container.boundaries_positions)) + ']'))
+            '\nEstimated BADs: {}\nSNP counts: {}\nSNP IDs counts: {}\nCritical gap: {:.0f}bp'
+            '\nBoundaries positions (location[deletion length (if any)]): {}'.format(
+                '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
+                self.segments_container.snps_counts, self.segments_container.snp_id_counts,
+                self.critical_gap_factor * self.effective_length,
+                '[' + ', '.join(map(
+                    lambda x: '{:.2f}Mbp'.format(x / 1000000) if isinstance(x,
+                                                                            (int, float, np.int_, np.float_)) else (
+                        '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0] / 1000000, (x[1] - x[0]) / 1000000)),
+                    self.segments_container.boundaries_positions)) + ']'))
         self.gs.logger.debug('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
         return self
 
@@ -757,15 +763,15 @@ class InputParser:
             samples = record.samples
         if record.CHROM not in ChromosomePosition.chromosomes:
             self.logger.error('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
-            return False
+            return
         if self.to_filter:
             if len(record.ALT) != 1:
-                return False
+                return
             if record.REF not in nucleotides or record.ALT[0] not in nucleotides:
-                return False
+                return
             maf = record.INFO.get('MAF', None)
             if (maf is not None and maf < 0.05) or record.ID == '.':
-                return False
+                return
         result = []
         ref_read_sum = 0
         alt_read_sum = 0
@@ -788,7 +794,7 @@ class InputParser:
             else:
                 raise ValueError
         if filter_out:
-            return False
+            return
         if self.snp_strategy == 'ADD':
             result.append(
                 (ref_read_sum, alt_read_sum)
@@ -797,6 +803,41 @@ class InputParser:
             if record.CHROM not in self.chromosomes_order:
                 self.chromosomes_order.append(record.CHROM)
         return result
+
+    @staticmethod
+    def df_to_counts(df):
+        return list(zip(*df[['start', 'ref_counts', 'alt_counts']].transpose().to_numpy()))
+
+    def read_bed(self, file_path):
+        snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
+        df = pd.read_table(file_path, header=None,
+                           names=['chr', 'start', 'end', 'ID', 'ref', 'alt',
+                                  'ref_counts', 'alt_counts'])
+        gb = df.groupby('chr')
+        for chr_df in [gb.get_group(x) for x in gb.groups]:
+            snps_collection[chr_df['chr'].tolist()[0]] = self.df_to_counts(chr_df)
+        return snps_collection
+
+    @staticmethod
+    def check_if_vcf(file_path):
+        result = True
+        with open(file_path) as f:
+            for line in f:
+                if line.startswith('#'):
+                    continue
+                if re.match(r'^chr*\t\d+\t\d+\t', line):
+                    f.seek(0)
+                    result = False
+                break
+        f.seek(0)
+        return result
+
+    def read_file(self, file_path, sample_list=None):
+        is_vcf = sample_list or self.check_if_vcf(file_path)
+        if is_vcf:
+            return self.filter_vcf(file_path, sample_list=sample_list)
+        else:
+            return self.read_bed(file_path)
 
     def filter_vcf(self, file_path, out_file_path=None, sample_list=None):
         """
@@ -822,11 +863,14 @@ class InputParser:
 
         if out_file_path:
             with open(out_file_path, 'w') as opened_out_file:
-                vcfWriter = vcf.Writer(opened_out_file, vcfReader)
-
                 for line_number, record in enumerate(vcfReader, 1):
-                    if self._filter_record(record, line_number, sample_indices):
-                        vcfWriter.write_record(record)  # FIXME: learn how to write only specified samples
+                    filter_result = self._filter_record(record, line_number, sample_indices)
+                    if filter_result is None:
+                        continue
+                    for result in filter_result:
+                        opened_out_file.write(
+                            pack([record.CHROM, record.start, record.end, record.ID,
+                                  record.REF, record.ALT[0], *result]))
         else:
             snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
             for line_number, record in enumerate(vcfReader, 1):
