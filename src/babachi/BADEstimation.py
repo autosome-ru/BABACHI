@@ -721,7 +721,8 @@ class GenomeSegmentator:  # gs
             jobs = min(self.jobs,
                        len(self.chr_segmentations),
                        max(1, mp.cpu_count()))
-            print(jobs)
+            if jobs == 0:
+                return
             with ctx.Pool(jobs) as p:
                 for i, res in zip(segmentations,
                                   p.map(self.start_chromosome, segmentations)):
@@ -798,9 +799,8 @@ class InputParser:
             result.append(
                 (ref_read_sum, alt_read_sum)
             )
-        if not self.force_sort:
-            if record.CHROM not in self.chromosomes_order:
-                self.chromosomes_order.append(record.CHROM)
+        if record.CHROM not in self.chromosomes_order:
+            self.chromosomes_order.append(record.CHROM)
         return result
 
     @staticmethod
@@ -812,10 +812,12 @@ class InputParser:
         df = pd.read_table(file_path, header=None,
                            names=['chr', 'start', 'end', 'ID', 'ref', 'alt',
                                   'ref_counts', 'alt_counts'])
+        df = df[df['chr'].isin(ChromosomePosition.chromosomes)]
+        self.chromosomes_order = df['chr'].unique()
         gb = df.groupby('chr')
         for chr_df in [gb.get_group(x) for x in gb.groups]:
             snps_collection[chr_df['chr'].tolist()[0]] = self.df_to_counts(chr_df)
-        return snps_collection
+        return self.chromosomes_order, snps_collection
 
     @staticmethod
     def check_if_vcf(file_path):
@@ -1168,8 +1170,8 @@ def segmentation_start():
             exit(0)
             return
         else:
-            snps_collection, chromosomes_order = input_parser.filter_vcf(file_path=full_name,
-                                                                         sample_list=args['--sample-list'])
+            snps_collection, chromosomes_order = input_parser.read_file(file_path=full_name,
+                                                                        sample_list=args['--sample-list'])
     except Exception as e:
         raise ValueError("Can not read the input file", e.args)
 
