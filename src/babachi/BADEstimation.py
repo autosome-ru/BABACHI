@@ -721,6 +721,7 @@ class GenomeSegmentator:  # gs
             jobs = min(self.jobs,
                        len(self.chr_segmentations),
                        max(1, mp.cpu_count()))
+            print(jobs)
             with ctx.Pool(jobs) as p:
                 for i, res in zip(segmentations,
                                   p.map(self.start_chromosome, segmentations)):
