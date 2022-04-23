@@ -30,7 +30,6 @@ Optional arguments:
     -f, --force-sort                        Chromosomes will be sorted in numerical order
     -j <int>, --jobs <int>                  Number of parallel jobs to use,
                                             will not be more than # of chromosomes [default: 1]
-
     -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
 
