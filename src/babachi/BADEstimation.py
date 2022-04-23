@@ -1131,7 +1131,7 @@ def segmentation_start():
             Use(int),
             Const(lambda x: x >= 200), error='Atomic region size (in SNPs) must be a non negative integer'
         ),
-        '--jobs': Use(int),
+        '--jobs': Use(int, error='Number of jobs should be positive integer'),
         '--ext': str,
         str: bool
     })
