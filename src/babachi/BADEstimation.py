@@ -826,15 +826,14 @@ class InputParser:
             for line in f:
                 if line.startswith('#'):
                     continue
-                if re.match(r'^chr*\t\d+\t\d+\t', line):
-                    f.seek(0)
+                if re.match(r'^chr(\d+|X|Y)\t\d+\t\d+\t', line):
                     result = False
                 f.seek(0)
                 break
         return result
 
     def read_file(self, file_path, sample_list=None):
-        is_vcf = sample_list or self.check_if_vcf(file_path)
+        is_vcf = sample_list is not None or self.check_if_vcf(file_path)
         if is_vcf:
             self.logger.debug('Reading as VCF file')
             return self.filter_vcf(file_path, sample_list=sample_list)
