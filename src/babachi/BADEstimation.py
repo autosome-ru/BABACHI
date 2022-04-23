@@ -836,8 +836,10 @@ class InputParser:
     def read_file(self, file_path, sample_list=None):
         is_vcf = sample_list or self.check_if_vcf(file_path)
         if is_vcf:
+            self.logger.debug('Reading as VCF file')
             return self.filter_vcf(file_path, sample_list=sample_list)
         else:
+            self.logger.debug('Reading as BED file')
             return self.read_bed(file_path)
 
     def filter_vcf(self, file_path, out_file_path=None, sample_list=None):
