@@ -829,8 +829,8 @@ class InputParser:
                 if re.match(r'^chr*\t\d+\t\d+\t', line):
                     f.seek(0)
                     result = False
+                f.seek(0)
                 break
-        f.seek(0)
         return result
 
     def read_file(self, file_path, sample_list=None):
