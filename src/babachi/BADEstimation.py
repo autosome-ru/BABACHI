@@ -817,8 +817,7 @@ class InputParser:
         gb = df.groupby('chr')
         for chr_df in [gb.get_group(x) for x in gb.groups]:
             snps_collection[chr_df['chr'].tolist()[0]] = self.df_to_counts(chr_df)
-        print(snps_collection)
-        return self.chromosomes_order, snps_collection
+        return snps_collection, self.chromosomes_order
 
     @staticmethod
     def check_if_vcf(file_path):
