@@ -35,7 +35,10 @@ def init_from_snps_collection(snps_collection, BAD_file,
         if verbose:
             print('Visualizing {}'.format(chromosome))
 
-        result = filter_data_by_chromosome(chromosome, BAD_table, cosmics, snps_collection)
+        result = filter_data_by_chromosome(chromosome, BAD_table=BAD_table,
+                                           snps_collection=snps_collection,
+                                           cosmics=cosmics,
+                                           )
         if result is None:
             continue
         BAD_segments, snps, cosmic_data = result
@@ -60,13 +63,13 @@ def read_cosmic(cosmic_file, cosmic_line):
             (cosmic['minorCN'] != 0)
             ]
         if cosmic.empty:
-            return
+            return None
         cosmic['BAD'] = cosmic.eval('(totalCN - minorCN) / minorCN')
         cosmic['startpos'] = cosmic['startpos'].astype(int)
         cosmic['endpos'] = cosmic['endpos'].astype(int)
         cosmic = cosmic.drop(['totalCN', 'minorCN', 'sample_name'], axis=1)
         return cosmic
-
+    return None
 
 def filter_data_by_chromosome(chromosome, BAD_table, snps_collection=None,
                               cosmics=None):
