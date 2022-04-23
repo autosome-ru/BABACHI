@@ -32,7 +32,6 @@ Optional arguments:
                                             will not be more than # of chromosomes [default: 1]
     -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
-
     -p <string>, --prior <prior-string>     Prior to use. uniform or geometric_<float> [default: uniform]
     -s <string>, --states <states-string>   States string [default: 1,2,3,4,5,6]
     -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
