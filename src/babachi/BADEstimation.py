@@ -709,6 +709,7 @@ class GenomeSegmentator:  # gs
             chr_segmentation = ChromosomeSegmentation(self, chromosome,
                                                       self.chromosomes_wrapper.chromosomes[chromosome] - 1)
             self.logger.debug('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
+            self.logger.debug('{} length: {}'.format(chromosome, self.chromosomes_wrapper.chromosomes[chromosome]))
             self.chr_segmentations.append(chr_segmentation)
         else:
             self.logger.debug('-----------------------------------------')
