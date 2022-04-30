@@ -1,4 +1,6 @@
-__all__ = ['ChromosomePosition', 'pack', 'nucleotides']
+__all__ = ['ChromosomesWrapper', 'pack', 'nucleotides', 'init_wrapper']
+
+import pandas as pd
 
 nucleotides = ['A', 'T', 'G', 'C']
 
@@ -8,51 +10,22 @@ chr_l = [248956422, 242193529, 198295559, 190214555, 181538259, 170805979, 15934
          156040895, 57227415]
 
 
-class ChromosomePosition:
-    sorted_chromosomes = ['chr' + str(i) for i in range(1, 23)] + ['chrX', 'chrY']
-    chromosomes = dict(zip(sorted_chromosomes, chr_l))
-    genome_length = sum(chr_l)
-
-    def __init__(self, chr, pos):
-        if chr not in self.chromosomes:
-            raise ValueError("Not in valid chromosomes {}".format(chr))
-        self.chr = chr
-        self.pos = int(pos)
-
-    def __lt__(self, other):
-        if self.chr == other.chr:
-            return self.pos < other.pos
+class ChromosomesWrapper:
+    def __init__(self, chromosomes_df=None):
+        if chromosomes_df is None:
+            self.sorted_chromosomes = ['chr' + str(i) for i in range(1, 23)] + ['chrX', 'chrY']
+            self.chromosomes = dict(zip(self.sorted_chromosomes, chr_l))
         else:
-            return self.chr < other.chr
+            self.chromosomes = pd.Series(chromosomes_df.length.values,
+                                         index=chromosomes_df.chromosomes)
+            self.sorted_chromosomes = chromosomes_df.chromosomes.tolist()
 
-    def __gt__(self, other):
-        if self.chr == other.chr:
-            return self.pos > other.pos
-        else:
-            return self.chr > other.chr
 
-    def __le__(self, other):
-        if self.chr == other.chr:
-            return self.pos <= other.pos
-        else:
-            return self.chr <= other.chr
-
-    def __ge__(self, other):
-        if self.chr == other.chr:
-            return self.pos >= other.pos
-        else:
-            return self.chr >= other.chr
-
-    def __eq__(self, other):
-        return (self.chr, self.pos) == (other.chr, other.pos)
-
-    def __ne__(self, other):
-        return (self.chr, self.pos) != (other.chr, other.pos)
-
-    def distance(self, other):
-        if self.chr != other.chr:
-            return float('inf')
-        return abs(self.pos - other.pos)
+def init_wrapper(wrapper):
+    if wrapper is None:
+        return ChromosomesWrapper()
+    else:
+        return wrapper
 
 
 def pack(values):

@@ -12,7 +12,8 @@ Arguments:
     <states-string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3).
                       Each state must be >= 1
     <samples-string>  Comma-separated sample names or indices
-    <prior-string>    "uniform" or "geometric_<float>" where 0 < float < 1
+    <prior-string>    One of "uniform" or "geometric_<float>" where 0 < float < 1
+    <file-or-link>    Path to existing file or link
 
 
 Required arguments:
@@ -29,7 +30,8 @@ Optional arguments:
     -n, --no-filter                         Skip filtering of input file
     -f, --force-sort                        Chromosomes will be sorted in numerical order
     -j <int>, --jobs <int>                  Number of parallel jobs to use,
-                                            will not be more than # of chromosomes [default: 1]
+                                            won't be more than # of chromosomes [default: 1]
+    --chrom-sizes <file-or-link>            File with chromosome sizes (can be link), default is hg38
     -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
     -p <string>, --prior <prior-string>     Prior to use. uniform or geometric_<float> [default: uniform]
@@ -53,9 +55,11 @@ import math
 import multiprocessing as mp
 import re
 import sys
+from urllib.request import Request, urlopen
 
 import numpy as np
 import pandas as pd
+import validators
 import vcf
 from numba import njit
 import os.path
@@ -65,7 +69,7 @@ import time
 from .helpers import ChromosomePosition, pack, nucleotides
 from abc import ABC, abstractmethod
 from docopt import docopt
-from .visualize_segmentation import init_from_snps_collection
+from .visualize_segmentation import BabachiVisualizer
 from collections import namedtuple
 
 bedfile_line = namedtuple('BED_file_line', field_names=[
@@ -661,7 +665,8 @@ class GenomeSegmentator:  # gs
                  b_penalty=4, prior=None, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
                  post_seg_filter=0,
                  jobs=1,
-                 atomic_region_size=600, chr_filter=100, subchr_filter=3, logger=None, logger_level=logging.INFO):
+                 atomic_region_size=600, chr_filter=100, subchr_filter=3, logger=None, logger_level=logging.INFO,
+                 chromosomes_wrapper=None):
 
         self.logger = logger
         self.logger_level = logger_level
@@ -697,6 +702,8 @@ class GenomeSegmentator:  # gs
         self.chromosomes_order = chromosomes_order  # ['chr1', 'chr2', ...]
 
         self.chr_segmentations = []  # list of ChromosomeSegmentation instances
+
+        self.chromosomes_wrapper = init_wrapper(chromosomes_wrapper)
 
         for chromosome in self.chromosomes_order:
             chr_segmentation = ChromosomeSegmentation(self, chromosome, ChromosomePosition.chromosomes[chromosome] - 1)
@@ -1058,6 +1065,11 @@ def get_prior(string, states):
     }
 
 
+def read_url_file(url):
+    url_request = Request(url)
+    return urlopen(url_request)
+
+
 def segmentation_start():
     args = docopt(__doc__)
     # FIXME UPDATE TEST VCF
@@ -1087,6 +1099,14 @@ def segmentation_start():
         '--snp-strategy': Const(
             lambda x: x in ('ADD', 'SEP'),
             error='SNP strategy should be either ADD or SEP'
+        ),
+        '--chrom-sizes': Or(
+            Const(lambda x: x is None),
+            And(
+                Const(validators.url, error='Not a valid URL'),
+                Use(read_url_file)
+            ),
+            Const(os.path.exists, error='File should exist')
         ),
         '--badmap': Or(
             Const(lambda x: x is None and not args['visualize']),
@@ -1152,7 +1172,12 @@ def segmentation_start():
         level = logging.INFO
     logger = logging.getLogger(__name__)
     set_logger_config(logger, level)
-
+    if args['--chrom-sizes'] is not None:
+        chrom_sizes_df = pd.read_table(args['--chrom-sizes'],
+                                       header=None, names=['chromosome', 'length'])
+        chromosomes_wrapper = ChromosomesWrapper(chrom_sizes_df)
+    else:
+        chromosomes_wrapper = ChromosomesWrapper()
     input_parser = InputParser(
         allele_reads_tr=int(args['--allele-reads-tr']),
         force_sort=args['--force-sort'],
@@ -1207,7 +1232,8 @@ def segmentation_start():
     else:
         badmap_file_path = args['--badmap']
     if args['--visualize'] or args['visualize']:
-        init_from_snps_collection(snps_collection=snps_collection,
-                                  to_zip=args['--zip'],
-                                  ext=args['--ext'],
-                                  BAD_file=badmap_file_path)
+        visualizer = BabachiVisualizer(chromosomes_wrapper=chromosomes_wrapper)
+        visualizer.init_from_snps_collection(snps_collection=snps_collection,
+                                             to_zip=args['--zip'],
+                                             ext=args['--ext'],
+                                             BAD_file=badmap_file_path)
