@@ -66,7 +66,7 @@ import os.path
 
 from schema import Schema, And, Use, SchemaError, Const, Or
 import time
-from .helpers import ChromosomePosition, pack, nucleotides
+from .helpers import ChromosomesWrapper, pack, nucleotides, init_wrapper
 from abc import ABC, abstractmethod
 from docopt import docopt
 from .visualize_segmentation import BabachiVisualizer
@@ -706,7 +706,8 @@ class GenomeSegmentator:  # gs
         self.chromosomes_wrapper = init_wrapper(chromosomes_wrapper)
 
         for chromosome in self.chromosomes_order:
-            chr_segmentation = ChromosomeSegmentation(self, chromosome, ChromosomePosition.chromosomes[chromosome] - 1)
+            chr_segmentation = ChromosomeSegmentation(self, chromosome,
+                                                      self.chromosomes_wrapper.chromosomes[chromosome] - 1)
             self.logger.debug('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
             self.chr_segmentations.append(chr_segmentation)
         else:
@@ -752,14 +753,16 @@ class GenomeSegmentator:  # gs
 
 
 class InputParser:
-    def __init__(self, allele_reads_tr=5, snp_strategy='SEP', force_sort=False, to_filter=True, logger=None):
+    def __init__(self, allele_reads_tr=5, snp_strategy='SEP', force_sort=False, to_filter=True, logger=None,
+                 chromosomes_wrapper=None):
         self.allele_reads_tr = allele_reads_tr
         self.to_filter = to_filter
         self.force_sort = force_sort
         self.logger = logger
         self.snp_strategy = snp_strategy
+        self.chromosomes_wrapper = init_wrapper(chromosomes_wrapper)
         if force_sort:
-            self.chromosomes_order = ChromosomePosition.sorted_chromosomes
+            self.chromosomes_order = self.chromosomes_wrapper.sorted_chromosomes
         else:
             self.chromosomes_order = []
 
@@ -768,7 +771,7 @@ class InputParser:
             samples = [record.samples[sample_id] for sample_id in sample_id_list]
         else:
             samples = record.samples
-        if record.CHROM not in ChromosomePosition.chromosomes:
+        if record.CHROM not in self.chromosomes_wrapper.chromosomes:
             self.logger.error('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
             return
         if self.to_filter:
@@ -815,11 +818,11 @@ class InputParser:
         return list(zip(*df[['start', 'ref_counts', 'alt_counts']].transpose().to_numpy()))
 
     def read_bed(self, file_path):
-        snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
+        snps_collection = {chromosome: [] for chromosome in self.chromosomes_wrapper.chromosomes}
         df = pd.read_table(file_path, header=None,
                            names=['chr', 'start', 'end', 'ID', 'ref', 'alt',
                                   'ref_counts', 'alt_counts'])
-        df = df[df['chr'].isin(ChromosomePosition.chromosomes)]
+        df = df[df['chr'].isin(self.chromosomes_wrapper.chromosomes)]
         self.chromosomes_order = df['chr'].unique()
         gb = df.groupby('chr')
         for chr_df in [gb.get_group(x) for x in gb.groups]:
@@ -881,7 +884,7 @@ class InputParser:
                             pack([record.CHROM, record.start, record.end, record.ID,
                                   record.REF, record.ALT[0], *result]))
         else:
-            snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
+            snps_collection = {chromosome: [] for chromosome in self.chromosomes_wrapper.chromosomes}
             for line_number, record in enumerate(vcfReader, 1):
                 filter_result = self._filter_record(record, line_number, sample_indices)
                 if filter_result:
@@ -1183,7 +1186,8 @@ def segmentation_start():
         force_sort=args['--force-sort'],
         to_filter=not args['--no-filter'] or args['filter'],
         snp_strategy=args['--snp-strategy'],
-        logger=logger
+        logger=logger,
+        chromosomes_wrapper=chromosomes_wrapper,
     )
     full_name = args['<file>']
     file_name, ext = os.path.splitext(os.path.basename(full_name))

@@ -30,5 +30,3 @@ def init_wrapper(wrapper):
 
 def pack(values):
     return '\t'.join(map(str, values)) + '\n'
-
-
