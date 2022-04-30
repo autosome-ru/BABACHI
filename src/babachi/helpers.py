@@ -17,7 +17,7 @@ class ChromosomesWrapper:
             self.chromosomes = dict(zip(self.sorted_chromosomes, chr_l))
         else:
             self.chromosomes = pd.Series(chromosomes_df.length.values,
-                                         index=chromosomes_df.chromosomes)
+                                         index=chromosomes_df.chromosome)
             self.sorted_chromosomes = chromosomes_df.chromosomes.tolist()
 
 
