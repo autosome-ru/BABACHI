@@ -1227,7 +1227,8 @@ def segmentation_start():
                                prior=get_prior(args['--prior'], args['--states']),
                                jobs=args['--jobs'],
                                logger=logger,
-                               logger_level=level,  # workaround for mp logging
+                               logger_level=level,  # workaround for mp logging,
+                               chromosomes_wrapper=chromosomes_wrapper,
                                )
         try:
             GS.estimate_BAD()
