@@ -41,6 +41,6 @@ setup(
     extras_require={
         'dev': ['wheel', 'twine', 'setuptools_scm'],
     },
-    python_requires='==3.6',
+    python_requires='>=3.6',
     url="https://github.com/autosome-ru/BABACHI",
 )
