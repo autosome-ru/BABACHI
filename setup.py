@@ -28,7 +28,7 @@ setup(
     package_dir={'': 'src'},
     install_requires=[
         'docopt>=0.6.2',
-        'numpy==1.21.0',
+        'numpy==1.19.5',
         'schema>=0.7.2',
         'contextlib2>=0.5.5',
         'pandas>=1.0.4',
@@ -41,6 +41,6 @@ setup(
     extras_require={
         'dev': ['wheel', 'twine', 'setuptools_scm'],
     },
-    python_requires='>=3.6',
+    python_requires='==3.6',
     url="https://github.com/autosome-ru/BABACHI",
 )
