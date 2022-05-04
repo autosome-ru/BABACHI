@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
 from zipfile import ZipFile
-from .helpers import ChromosomesWrapper, init_wrapper
+from .helpers import init_wrapper
 
 
 class BabachiVisualizer:
@@ -17,8 +17,9 @@ class BabachiVisualizer:
                                   to_zip=False,
                                   verbose=True, ext='svg',
                                   cosmic_file=None, cosmic_line=None):
-        sns.set(font_scale=1.2, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
-                                                                     '#D55E00', '#CC79A7'))
+        sns.set(font_scale=1.2, style="ticks", font="lato",
+                palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
+                         '#D55E00', '#CC79A7'))
         plt.rcParams['font.weight'] = "medium"
         plt.rcParams['axes.labelweight'] = 'medium'
         plt.rcParams['figure.titleweight'] = 'medium'
@@ -40,24 +41,25 @@ class BabachiVisualizer:
                 print('Visualizing {}'.format(chromosome))
 
             result = self.filter_data_by_chromosome(chromosome, BAD_table=BAD_table,
-                                               snps_collection=snps_collection,
-                                               cosmics=cosmics,
-                                               )
+                                                    snps_collection=snps_collection,
+                                                    cosmics=cosmics,
+                                                    )
             if result is None:
                 continue
             BAD_segments, snps, cosmic_data = result
             self.visualize_chromosome(chromosome, BAD_segments, snps,
-                                 os.path.join(out_path,
-                                              '{}_{}.{}'.format(file_name,
-                                                                chromosome, ext)),
-                                 cosmic_data)
+                                      os.path.join(out_path,
+                                                   '{}_{}.{}'.format(file_name,
+                                                                     chromosome, ext)),
+                                      cosmic_data)
         if to_zip:
             with ZipFile(out_path + '.zip', 'w') as zip_archive:
                 for file in os.listdir(out_path):
                     if file.endswith(ext):
                         zip_archive.write(os.path.join(out_path, file))
 
-    def read_cosmic(self, cosmic_file, cosmic_line):
+    @staticmethod
+    def read_cosmic(cosmic_file, cosmic_line):
         if cosmic_file is not None and cosmic_line is not None:
             cosmic = pd.read_table(cosmic_file, low_memory=False, header=None)
             cosmic.columns = ['sample_name', '#chr', 'startpos', 'endpos', 'minorCN', 'totalCN']
@@ -125,11 +127,11 @@ class BabachiVisualizer:
         if snps is not None:
             self.add_snps(ax, snps, y_max, delta_y)
         self.add_babachi_estimations(fig, ax, chromosome,
-                                BAD_segments, chr_cosmic,
-                                BAD_color=BAD_color,
-                                COSMIC_color=COSMIC_color,
-                                BAD_lw=BAD_lw,
-                                COSMIC_lw=COSMIC_lw)
+                                     BAD_segments, chr_cosmic,
+                                     BAD_color=BAD_color,
+                                     COSMIC_color=COSMIC_color,
+                                     BAD_lw=BAD_lw,
+                                     COSMIC_lw=COSMIC_lw)
         self.post_draw_settings(ax, chromosome, y_min=y_min, y_max=y_max)
         if out_path:
             plt.savefig(out_path, dpi=300)
@@ -137,7 +139,8 @@ class BabachiVisualizer:
             plt.show()
         plt.close(fig)
 
-    def add_snps(self, ax, snps, y_max=6, delta_y=0.05):
+    @staticmethod
+    def add_snps(ax, snps, y_max=6, delta_y=0.05):
         ref_snps = snps[snps['ref_c'] >= snps['alt_c']]
         alt_snps = snps[snps['ref_c'] < snps['alt_c']]
         snps['AD'] = snps['AD'].apply(lambda y: y_max - delta_y if y > y_max else y)
