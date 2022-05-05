@@ -76,6 +76,8 @@ bedfile_line = namedtuple('BED_file_line', field_names=[
     'chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts'
 ])
 
+root_logger = logging.getLogger(__name__)
+
 
 # TODO check if input sorted
 class BADSegmentsContainer:
@@ -596,7 +598,6 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self):
-        set_logger_config(self.gs.logger, self.gs.logger_level)
         self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
             return self
@@ -665,10 +666,10 @@ class GenomeSegmentator:  # gs
                  b_penalty=4, prior=None, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
                  post_seg_filter=0,
                  jobs=1,
-                 atomic_region_size=600, chr_filter=100, subchr_filter=3, logger=None, logger_level=logging.INFO,
+                 atomic_region_size=600, chr_filter=100, subchr_filter=3, logger_level=logging.INFO,
                  chromosomes_wrapper=None):
 
-        self.logger = logger
+        self.logger = root_logger
         self.logger_level = logger_level
         self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
         self.scoring_mode = scoring_mode  # marginal or maximum
@@ -714,6 +715,17 @@ class GenomeSegmentator:  # gs
         else:
             self.logger.debug('-----------------------------------------')
 
+    def __getstate__(self):
+        state = self.__dict__
+        del state['logger']
+        return state
+
+    def __setstate__(self, state):
+        for name, value in state.items():
+            setattr(self, name, value)
+        assert not hasattr(self, 'logger')
+        self.logger = root_logger
+
     def start_chromosome(self, j):
         return self.chr_segmentations[j].estimate_chr()
 
@@ -754,12 +766,12 @@ class GenomeSegmentator:  # gs
 
 
 class InputParser:
-    def __init__(self, allele_reads_tr=5, snp_strategy='SEP', force_sort=False, to_filter=True, logger=None,
+    def __init__(self, allele_reads_tr=5, snp_strategy='SEP', force_sort=False, to_filter=True,
                  chromosomes_wrapper=None):
         self.allele_reads_tr = allele_reads_tr
         self.to_filter = to_filter
         self.force_sort = force_sort
-        self.logger = logger
+        self.logger = root_logger
         self.snp_strategy = snp_strategy
         self.chromosomes_wrapper = init_wrapper(chromosomes_wrapper)
         if force_sort:
@@ -1174,8 +1186,8 @@ def segmentation_start():
         level = logging.DEBUG
     else:
         level = logging.INFO
-    logger = logging.getLogger(__name__)
-    set_logger_config(logger, level)
+
+    set_logger_config(root_logger, level)
     if args['--chrom-sizes'] is not None:
         chrom_sizes_df = pd.read_table(args['--chrom-sizes'],
                                        header=None, names=['chromosome', 'length'])
@@ -1187,7 +1199,6 @@ def segmentation_start():
         force_sort=args['--force-sort'],
         to_filter=not args['--no-filter'] or args['filter'],
         snp_strategy=args['--snp-strategy'],
-        logger=logger,
         chromosomes_wrapper=chromosomes_wrapper,
     )
     full_name = args['<file>']
@@ -1226,7 +1237,6 @@ def segmentation_start():
                                subchr_filter=args['--subchr-filter'],
                                prior=get_prior(args['--prior'], args['--states']),
                                jobs=args['--jobs'],
-                               logger=logger,
                                logger_level=level,  # workaround for mp logging,
                                chromosomes_wrapper=chromosomes_wrapper,
                                )
@@ -1234,7 +1244,7 @@ def segmentation_start():
             GS.estimate_BAD()
         except Exception as e:
             raise e
-        logger.debug('Total time: {} s'.format(time.perf_counter() - t))
+        root_logger.debug('Total time: {} s'.format(time.perf_counter() - t))
     else:
         badmap_file_path = args['--badmap']
     if args['--visualize'] or args['visualize']:
