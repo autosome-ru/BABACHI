@@ -717,7 +717,8 @@ class GenomeSegmentator:  # gs
 
     def __getstate__(self):
         state = self.__dict__
-        del state['logger']
+        if 'logger' in state:
+            del state['logger']
         return state
 
     def __setstate__(self, state):
