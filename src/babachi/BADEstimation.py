@@ -833,7 +833,7 @@ class InputParser:
 
     def read_bed(self, file_path):
         snps_collection = {chromosome: [] for chromosome in self.chromosomes_wrapper.chromosomes}
-        df = pd.read_table(file_path, header=None,
+        df = pd.read_table(file_path, header=None, comment='#',
                            names=['chr', 'start', 'end', 'ID', 'ref', 'alt',
                                   'ref_counts', 'alt_counts'])
         df = df[df['chr'].isin(self.chromosomes_wrapper.chromosomes)]
