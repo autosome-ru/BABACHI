@@ -79,6 +79,8 @@ bedfile_line = namedtuple('BED_file_line', field_names=[
 root_logger = logging.getLogger(__name__)
 
 
+# TODO Use argparser instead of docopt
+# TODO Use pySAM instead of vcf
 # TODO check if input sorted
 class BADSegmentsContainer:
     allowed_fields = ['boundaries_positions', 'BAD_estimations', 'likelihoods', 'snps_counts', 'covers',
