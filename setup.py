@@ -16,7 +16,7 @@ setup(
     version=__version__,
     packages=find_packages('src'),
     include_package_data=True,
-    package_data={'babachi': ['tests/*.tsv']},
+    package_data={'babachi': ['tests/*.bed']},
     long_description=long_description,
     entry_points={
         'console_scripts': [

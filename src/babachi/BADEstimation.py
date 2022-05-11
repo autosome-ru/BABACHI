@@ -23,7 +23,7 @@ Required arguments:
 
 Optional arguments:
     -h, --help                              Show help
-    -q, --quiet                             Suppress log messages
+    -v, --verbose                           Write debug messages
     --sample-list <samples-string>          Comma-separated sample names or integer indices to use in input VCF
     --snp-strategy <snp-strategy>           Strategy to take into account SNPs on the same position.
                                             Either add read counts 'ADD' or treat as a separate events 'SEP'. [default: SEP]
@@ -1032,9 +1032,9 @@ def check_samples(string):
         return string
 
 
-def make_file_path_from_dir(out_path, file_name, ext='bed'):
+def make_file_path_from_dir(out_path, file_name, ext='badmap.bed'):
     if os.path.isdir(out_path):
-        return os.path.join(out_path, file_name + '.' + ext)
+        return os.path.join(out_path, f'{file_name}.{ext}')
     else:
         return out_path
 
@@ -1184,7 +1184,7 @@ def segmentation_start():
         print(__doc__)
         exit('Error: {}'.format(e))
 
-    verbose = not args['--quiet']
+    verbose = args['--verbose']
     if verbose:
         level = logging.DEBUG
     else:

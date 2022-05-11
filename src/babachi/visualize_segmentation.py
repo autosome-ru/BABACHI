@@ -38,7 +38,8 @@ class BabachiVisualizer:
         cosmics = self.read_cosmic(cosmic_file, cosmic_line=cosmic_line)
         for chromosome in snps_collection.keys():
             if verbose:
-                print('Visualizing {}'.format(chromosome))
+                pass
+                # print('Visualizing {}'.format(chromosome))
 
             result = self.filter_data_by_chromosome(chromosome, BAD_table=BAD_table,
                                                     snps_collection=snps_collection,
