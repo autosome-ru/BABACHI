@@ -59,7 +59,6 @@ from urllib.request import Request, urlopen
 
 import numpy as np
 import pandas as pd
-from scipy.special import logsumexp
 import validators
 import vcf
 from numba import njit
@@ -265,7 +264,8 @@ class Segmentation(ABC):
 
     def modify_L(self):
         if self.sub_chromosome.gs.scoring_mode == 'marginal':
-            self.L[:, :] = logsumexp(self.P, axis=0)
+            Q = np.sort(self.P, axis=0)
+            self.L[:, :] = Q[-1, :, :] + np.log1p(np.sum(np.exp(Q[:-1, :, :] - Q[-1, :, :]), axis=0))
         elif self.sub_chromosome.gs.scoring_mode == 'maximum':
             self.L[:, :] = self.P.max(axis=0)
 
