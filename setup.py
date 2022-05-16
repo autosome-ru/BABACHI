@@ -35,7 +35,7 @@ setup(
         'matplotlib>=3.2.1',
         'seaborn>=0.10.1',
         'numba>=0.53.1',
-        'pyVCF>=0.6.8',
+        'vcfpy>=0.13.4',
         'validators>=0.18.2'
     ],
     extras_require={
