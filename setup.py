@@ -36,6 +36,7 @@ setup(
         'seaborn>=0.10.1',
         'numba>=0.53.1',
         'vcfpy>=0.13.4',
+        'scipy>=1.5.1'
         'validators>=0.18.2'
     ],
     extras_require={
