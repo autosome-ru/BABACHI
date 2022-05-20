@@ -600,8 +600,6 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self):
-        set_logger_config(self.gs.logger, self.gs.logger_level)
-        root_logger.info('Processing SNPs in {}'.format(self.chromosome))
         self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
             return self
@@ -720,21 +718,19 @@ class GenomeSegmentator:  # gs
             self.logger.debug('-----------------------------------------')
 
     def __getstate__(self):
-        print('Get')
         state = self.__dict__
         if 'logger' in state:
             del state['logger']
         return state
 
     def __setstate__(self, state):
-        print('Set')
         for name, value in state.items():
             setattr(self, name, value)
         assert not hasattr(self, 'logger')
         self.logger = root_logger
+        set_logger_config(self.logger, self.logger_level)
 
     def start_chromosome(self, j):
-        self.logger.debug('asa')
         return self.chr_segmentations[j].estimate_chr()
 
     # noinspection PyTypeChecker
