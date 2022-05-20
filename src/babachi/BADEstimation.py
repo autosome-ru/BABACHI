@@ -720,12 +720,14 @@ class GenomeSegmentator:  # gs
             self.logger.debug('-----------------------------------------')
 
     def __getstate__(self):
+        print('Get')
         state = self.__dict__
         if 'logger' in state:
             del state['logger']
         return state
 
     def __setstate__(self, state):
+        print('Set')
         for name, value in state.items():
             setattr(self, name, value)
         assert not hasattr(self, 'logger')
