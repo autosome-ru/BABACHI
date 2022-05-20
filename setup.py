@@ -20,7 +20,7 @@ setup(
     long_description=long_description,
     entry_points={
         'console_scripts': [
-            'babachi = babachi.BADEstimation:segmentation_start',
+            'babachi = babachi.bad_estimation:segmentation_start',
         ],
     },
     author="Sergey Abramov, Alexandr Boytsov",

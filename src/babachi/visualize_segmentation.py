@@ -31,7 +31,7 @@ class BabachiVisualizer:
 
         BAD_table = pd.read_table(BAD_file)
         file_name = os.path.splitext(os.path.basename(BAD_file))[0]
-        out_path = os.path.join(os.path.dirname(BAD_file), '{}_visualization'.format(file_name))
+        out_path = os.path.join(os.path.dirname(BAD_file), '{}.visualization'.format(file_name))
         if not os.path.isdir(out_path):
             os.mkdir(out_path)
 
@@ -50,8 +50,7 @@ class BabachiVisualizer:
             BAD_segments, snps, cosmic_data = result
             self.visualize_chromosome(chromosome, BAD_segments, snps,
                                       os.path.join(out_path,
-                                                   '{}_{}.{}'.format(file_name,
-                                                                     chromosome, ext)),
+                                                   f'{file_name}_{chromosome}.{ext}'),
                                       cosmic_data)
         if to_zip:
             with ZipFile(out_path + '.zip', 'w') as zip_archive:
@@ -112,7 +111,7 @@ class ChromosomeVisualizer:
         self.chromosome_length = chromosome_length
         self.BAD_segments = BAD_segments
         self.snps = snps
-        self.out_path = out_path,
+        self.out_path = out_path
         self.cosmic_est = chr_cosmic
         self.fig = None
         self.ax = None
