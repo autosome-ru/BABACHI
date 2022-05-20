@@ -601,6 +601,7 @@ class ChromosomeSegmentation:  # chromosome
 
     def estimate_chr(self):
         print(self.gs.logger, root_logger)
+        root_logger.info('Processing SNPs in {}'.format(self.chromosome))
         self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
             return self
