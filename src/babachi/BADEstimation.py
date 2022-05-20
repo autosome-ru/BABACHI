@@ -12,7 +12,7 @@ Arguments:
     <states-string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3).
                       Each state must be >= 1
     <samples-string>  Comma-separated sample names or indices
-    <prior-string>    One of "uniform" or "geometric_<float>" where 0 < float < 1
+    <prior-string>    One of "uniform" or "geometric"
     <file-or-link>    Path to existing file or link
 
 
@@ -34,7 +34,8 @@ Optional arguments:
     --chrom-sizes <file-or-link>            File with chromosome sizes (can be link), default is hg38
     -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
-    -p <string>, --prior <prior-string>     Prior to use. uniform or geometric_<float> [default: uniform]
+    -p <string>, --prior <prior-string>     Prior to use. uniform or geometric [default: uniform]
+    -g <float>, --geometric-prior <float>   Coefficient for geometric prior [default: 0.98]
     -s <string>, --states <states-string>   States string [default: 1,2,3,4,5,6]
     -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
@@ -63,7 +64,7 @@ import validators
 import vcf
 from numba import njit
 import os.path
-
+from scipy.special import logsumexp
 from schema import Schema, And, Use, SchemaError, Const, Or
 import time
 from .helpers import ChromosomesWrapper, pack, nucleotides, init_wrapper
@@ -264,8 +265,7 @@ class Segmentation(ABC):
 
     def modify_L(self):
         if self.sub_chromosome.gs.scoring_mode == 'marginal':
-            Q = np.sort(self.P, axis=0)
-            self.L[:, :] = Q[-1, :, :] + np.log1p(np.sum(np.exp(Q[:-1, :, :] - Q[-1, :, :]), axis=0))
+            self.L[:, :] = logsumexp(self.P, axis=0)
         elif self.sub_chromosome.gs.scoring_mode == 'maximum':
             self.L[:, :] = self.P.max(axis=0)
 
@@ -739,19 +739,28 @@ class GenomeSegmentator:  # gs
                 pack(['#chr', 'start', 'end', 'BAD', 'SNP_count', 'SNP_ID_count', 'sum_cover'] + ['Q{:.2f}'.format(BAD)
                                                                                                   for BAD in
                                                                                                   self.BAD_list]))
-            ctx = mp.get_context("forkserver")
-            segmentations = [i for i in range(len(self.chr_segmentations))]
-
             jobs = min(self.jobs,
                        len(self.chr_segmentations),
                        max(1, mp.cpu_count()))
+            segmentations = [i for i in range(len(self.chr_segmentations))]
             if jobs == 0:
                 return
-            with ctx.Pool(jobs) as p:
-                for i, res in zip(segmentations,
-                                  p.map(self.start_chromosome, segmentations)):
+            elif jobs == 1:
+                for i in segmentations:
+                    res = self.start_chromosome(i)
                     self.write_BAD_to_file(res, outfile)
                     self.chr_segmentations[i] = None
+            else:
+                try:
+                    ctx = mp.get_context("forkserver")
+                except ValueError as e:
+                    print('forkserver is not available for Windows')
+                    raise e
+                with ctx.Pool(jobs) as p:
+                    for i, res in zip(segmentations,
+                                      p.map(self.start_chromosome, segmentations)):
+                        self.write_BAD_to_file(res, outfile)
+                        self.chr_segmentations[i] = None
 
     def write_BAD_to_file(self, chromosome_segmentation, outfile):
         segments_generator = chromosome_segmentation.segments_container.get_BAD_segments(chromosome_segmentation)
@@ -788,7 +797,7 @@ class InputParser:
         else:
             samples = record.samples
         if record.CHROM not in self.chromosomes_wrapper.chromosomes:
-            self.logger.error('Invalid chromosome name: {} in line #{}'.format(record.CHROM, line_number))
+            self.logger.warning(f'Chromosome length for {record.CHROM} in line #{line_number} not available')
             return
         if self.to_filter:
             if len(record.ALT) != 1:
@@ -927,6 +936,7 @@ def fast_find_optimal_borders(
     score = np.zeros(candidates_count + 1, dtype=np.float64)
     best_boundaries_count = np.zeros(candidates_count + 1, dtype=np.int_)
     has_boundary_cache = np.zeros((candidates_count + 1, candidates_count), dtype=np.bool_)
+    unique_positions = None
     if min_seg_snps:
         unique_positions = np.zeros(candidates_count + 1)
         current_index = 0
@@ -956,8 +966,9 @@ def fast_find_optimal_borders(
                 if min_seg_snps or min_seg_bp:
                     last_index = candidate_numbers[i] + 1 - first_snp_number if i != candidates_count else -1
                     first_index = candidate_numbers[k] + 1 - first_snp_number
-                    if (min_seg_snps and unique_positions[last_index] - unique_positions[first_index] < min_seg_snps) or \
-                            (min_seg_bp and snps_positions[last_index] - snps_positions[first_index] < min_seg_bp):
+                    if (min_seg_snps and unique_positions[last_index] -
+                        unique_positions[first_index] < min_seg_snps) or (
+                            min_seg_bp and snps_positions[last_index] - snps_positions[first_index] < min_seg_bp):
                         z_penalty = -inf_score
 
                 likelihood = score[k] + L[k + 1, i]
@@ -1064,10 +1075,9 @@ def validate_prior(string):
         return False
 
 
-def get_prior(string, states):
+def get_prior(states, string, p):
     if string == 'uniform':
         return None
-    p = float(string.split('_')[1])
     minimum_ploidy = {
         1: 2,
         4 / 3: 7,
@@ -1093,9 +1103,8 @@ def read_url_file(url):
 
 def segmentation_start():
     args = docopt(__doc__)
-    # FIXME UPDATE TEST VCF
     if args['--test']:
-        args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests', 'test.tsv')
+        args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests', 'test.bed')
 
     schema = Schema({
         '<file>': And(
@@ -1177,6 +1186,10 @@ def segmentation_start():
             Const(lambda x: x >= 200), error='Atomic region size (in SNPs) must be a non negative integer'
         ),
         '--jobs': Use(int, error='Number of jobs should be positive integer'),
+        '--geometric-prior': And(
+            Use(float, error='Geometric prior should be a number'),
+            Const(lambda x: 0 <= x <= 1, error='Coefficient should be between 0 and 1')
+        ),
         '--ext': str,
         str: bool
     })
@@ -1240,7 +1253,8 @@ def segmentation_start():
                                atomic_region_size=args['--atomic-region-size'],
                                chr_filter=args['--chr-min-snps'],
                                subchr_filter=args['--subchr-filter'],
-                               prior=get_prior(args['--prior'], args['--states']),
+                               prior=get_prior(args['--states'], args['--prior'],
+                                               args['--geometric-prior']),
                                jobs=args['--jobs'],
                                logger_level=level,  # workaround for mp logging,
                                chromosomes_wrapper=chromosomes_wrapper,
