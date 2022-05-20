@@ -732,6 +732,7 @@ class GenomeSegmentator:  # gs
         self.logger = root_logger
 
     def start_chromosome(self, j):
+        self.logger.debug('asa')
         return self.chr_segmentations[j].estimate_chr()
 
     # noinspection PyTypeChecker
