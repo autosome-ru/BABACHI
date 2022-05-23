@@ -37,6 +37,7 @@ setup(
         'numba>=0.53.1',
         'vcfpy>=0.13.4',
         'scipy>=1.5.1',
+        'pyvcf==0.6.8',
         'validators>=0.18.2'
     ],
     extras_require={
