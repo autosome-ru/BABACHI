@@ -35,8 +35,8 @@ def pack(values):
 class GenomeSNPsHandler:
     def __init__(self, data: pd.DataFrame, chrom_wrapper: ChromosomesWrapper):
         self.data = {}
-        self.chromosome_order = data['#chr'].unique()
-        gb = data.groupby(['#chr'])
+        self.chromosome_order = data['chr'].unique()
+        gb = data.groupby(['chr'])
         for chromosome, group_df in [(group, gb.get_group(group)) for group in gb.groups]:
             if chromosome in chrom_wrapper.chromosomes:
                 self.data[chromosome] = ChromosomeSNPsHandler.from_df(chromosome, group_df)
