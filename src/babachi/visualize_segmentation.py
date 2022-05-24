@@ -6,14 +6,14 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
 from zipfile import ZipFile
-from .helpers import init_wrapper
+from .helpers import init_wrapper, GenomeSNPsHandler
 
 
 class BabachiVisualizer:
     def __init__(self, chromosomes_wrapper=None):
         self.chromosomes_wrapper = init_wrapper(chromosomes_wrapper)
 
-    def init_from_snps_collection(self, snps_collection, BAD_file,
+    def init_from_snps_collection(self, snps_collection: GenomeSNPsHandler, BAD_file,
                                   to_zip=False,
                                   verbose=True, ext='svg',
                                   cosmic_file=None, cosmic_line=None):
@@ -36,7 +36,7 @@ class BabachiVisualizer:
             os.mkdir(out_path)
 
         cosmics = self.read_cosmic(cosmic_file, cosmic_line=cosmic_line)
-        for chromosome in snps_collection.keys():
+        for chromosome in snps_collection.chromosome_order:
             if verbose:
                 pass
                 # print('Visualizing {}'.format(chromosome))
@@ -86,14 +86,14 @@ class BabachiVisualizer:
         return None
 
     @staticmethod
-    def filter_data_by_chromosome(chromosome, BAD_table, snps_collection=None,
+    def filter_data_by_chromosome(chromosome, BAD_table, snps_collection: GenomeSNPsHandler = None,
                                   cosmics=None):
         BAD_segments = BAD_table[BAD_table['#chr'] == chromosome]
         if BAD_segments.empty:
             return None
         if snps_collection is not None:
             column_names = ['pos', 'ref_c', 'alt_c']
-            snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection[chromosome]))))
+            snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection.data[chromosome].data))))
             if snps.empty:
                 return None
             snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
