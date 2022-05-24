@@ -43,7 +43,7 @@ class GenomeSNPsHandler:
 
 
 class ChromosomeSNPsHandler:
-    def __init__(self, chromosome, data):
+    def __init__(self, chromosome, data: np.ndarray):
         if not type(data) is np.ndarray:
             raise ValueError('Not a numpy array provided.')
         if data.shape[0] != 3:

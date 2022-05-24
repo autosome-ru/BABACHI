@@ -93,7 +93,9 @@ class BabachiVisualizer:
             return None
         if snps_collection is not None:
             column_names = ['pos', 'ref_c', 'alt_c']
-            snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection.data[chromosome].data))))
+            snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection.data[chromosome].data.transpose()))))
+
+            print(snps)
             if snps.empty:
                 return None
             snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
