@@ -814,7 +814,7 @@ class InputParser:
                 if min(sample_ref_read_count, sample_alt_read_count) < self.allele_reads_tr:
                     continue
                 print(sample['GT'])
-                if sample['GT'] != '0/1':
+                if '/'.join(sample['GT']) != '0/1':
                     continue
             filter_out = False
             if self.snp_strategy == 'ADD':
