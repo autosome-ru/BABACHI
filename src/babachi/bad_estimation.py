@@ -793,8 +793,8 @@ class InputParser:
             samples = [record.samples[sample_id] for sample_id in sample_id_list]
         else:
             samples = record.samples
-        if record.CHROM not in self.chromosomes_wrapper.chromosomes:
-            self.logger.warning(f'Chromosome length for {record.CHROM} in line #{line_number} not available')
+        if record.chrom not in self.chromosomes_wrapper.chromosomes:
+            self.logger.warning(f'Chromosome length for {record.chrom} in line #{line_number} not available')
             return
         if self.to_filter:
             if len(record.alts) != 1:
