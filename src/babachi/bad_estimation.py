@@ -913,7 +913,7 @@ class InputParser:
         previous_line = None
         result = []
         df_columns = ['chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts']
-        for line_number, record in enumerate(vcfReader, 1):
+        for line_number, record in enumerate(vcfReader.fetch(), 1):
             previous_line = self.check_record(record, previous_line)
             filter_result = self._filter_record(record, line_number, sample_indices)
             if filter_result:
