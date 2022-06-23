@@ -801,7 +801,6 @@ class InputParser:
                 return
             if record.ref not in nucleotides or record.alts[0] not in nucleotides:
                 return
-            print(record.info['MAF'], record.info['AD'])
             maf = record.info.get('MAF', None)
             if (maf is not None and maf < 0.05) or record.id == '.':
                 return
@@ -809,6 +808,7 @@ class InputParser:
         ref_read_sum = 0
         alt_read_sum = 0
         filter_out = True
+        print(record.format.items())
         for sample in samples:
             sample_ref_read_count, sample_alt_read_count = sample.info['AD']
             if self.to_filter:
