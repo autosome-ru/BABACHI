@@ -808,6 +808,7 @@ class InputParser:
         ref_read_sum = 0
         alt_read_sum = 0
         filter_out = True
+        print(record[samples[0]])
         print(record.format['AD'].name, )
         print(record.format['AD'].id, )
         for sample in samples:
