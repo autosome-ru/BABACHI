@@ -42,6 +42,7 @@ setup(
     ],
     extras_require={
         'dev': ['wheel', 'twine', 'setuptools_scm'],
+        'vcf': ['pysam']
     },
     python_requires='>=3.6',
     url="https://github.com/autosome-ru/BABACHI",

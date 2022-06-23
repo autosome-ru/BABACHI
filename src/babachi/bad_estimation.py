@@ -61,7 +61,6 @@ from urllib.request import Request, urlopen
 import numpy as np
 import pandas as pd
 import validators
-import vcf
 from numba import njit
 import os.path
 from scipy.special import logsumexp
@@ -892,8 +891,13 @@ class InputParser:
         :return: None pd.DataFrame
         """
         self.logger.info('Reading input file...')
-        vcfReader = vcf.Reader(filename=file_path)
-
+        try:
+            from pysam import VariantFile
+        except ImportError as e:
+            print(f'Please install pysam package (e.g. with conda install pysam --channel bioconda)')
+            raise e
+        vcfReader = VariantFile(file_path, 'r')
+        print(vcfReader)
         if sample_list is None:
             sample_indices = None
         elif all(isinstance(sample, int) for sample in sample_list):
@@ -901,10 +905,10 @@ class InputParser:
         else:
             sample_indices = []
             for sample in sample_list:
-                sample_index = vcfReader.samples.index(sample)
+                sample_index = vcfReader.header.samples.index(sample)
                 if sample_index == -1:
                     raise ValueError('Error: Sample {} was not found in header'.format(sample))
-                sample_indices.append(vcfReader.samples[sample_index])
+                sample_indices.append(vcfReader.header.samples[sample_index])
         previous_line = None
         result = []
         df_columns = ['chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts']
