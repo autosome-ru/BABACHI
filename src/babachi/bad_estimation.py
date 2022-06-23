@@ -810,7 +810,7 @@ class InputParser:
         filter_out = True
         #print(help(record.format))
         #print(record.format.keys())
-        print(record.format['GT'].description, record.format['AD'].description)
+        print(samples.values())
         for sample in samples:
             sample_ref_read_count, sample_alt_read_count = record.format['AD']
             if self.to_filter:
