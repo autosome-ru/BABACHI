@@ -808,9 +808,9 @@ class InputParser:
         ref_read_sum = 0
         alt_read_sum = 0
         filter_out = True
-        print(help(record.format))
-        print(record.format.keys())
-        print(record.format['GT'])
+        #print(help(record.format))
+        #print(record.format.keys())
+        print(help(record.format['GT']))
         for sample in samples:
             sample_ref_read_count, sample_alt_read_count = record.format['AD']
             if self.to_filter:
