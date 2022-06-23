@@ -808,7 +808,8 @@ class InputParser:
         ref_read_sum = 0
         alt_read_sum = 0
         filter_out = True
-        print(record.format['AD'].__dict__)
+        print(record.format['AD'].name, )
+        print(record.format['AD'].id, )
         for sample in samples:
             sample_ref_read_count, sample_alt_read_count = record.format['AD']
             if self.to_filter:
