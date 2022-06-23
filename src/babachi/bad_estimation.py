@@ -808,11 +808,8 @@ class InputParser:
         ref_read_sum = 0
         alt_read_sum = 0
         filter_out = True
-        #print(help(record.format))
-        #print(record.format.keys())
-        print(samples.values())
-        for sample in samples:
-            sample_ref_read_count, sample_alt_read_count = record.format['AD']
+        for sample in samples.values():
+            sample_ref_read_count, sample_alt_read_count = sample['AD']
             if self.to_filter:
                 if min(sample_ref_read_count, sample_alt_read_count) < self.allele_reads_tr:
                     continue
