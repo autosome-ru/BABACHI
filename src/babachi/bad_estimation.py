@@ -813,6 +813,7 @@ class InputParser:
             if self.to_filter:
                 if min(sample_ref_read_count, sample_alt_read_count) < self.allele_reads_tr:
                     continue
+                print(sample['GT'])
                 if sample['GT'] != '0/1':
                     continue
             filter_out = False
