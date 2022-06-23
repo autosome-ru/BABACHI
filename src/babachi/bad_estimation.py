@@ -894,7 +894,7 @@ class InputParser:
         try:
             from pysam import VariantFile
         except ImportError as e:
-            print(f'Please install pysam package (e.g. with conda install pysam --channel bioconda)')
+            print(f'Please install pysam package (https://pysam.readthedocs.io/en/latest/installation.html)')
             raise e
         vcfReader = VariantFile(file_path, 'r')
         if sample_list is None:
