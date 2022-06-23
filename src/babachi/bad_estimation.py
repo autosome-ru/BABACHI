@@ -797,12 +797,13 @@ class InputParser:
             self.logger.warning(f'Chromosome length for {record.CHROM} in line #{line_number} not available')
             return
         if self.to_filter:
-            if len(record.ALT) != 1:
+            if len(record.alts) != 1:
                 return
-            if record.REF not in nucleotides or record.ALT[0] not in nucleotides:
+            if record.ref not in nucleotides or record.alts[0] not in nucleotides:
                 return
-            maf = record.INFO.get('MAF', None)
-            if (maf is not None and maf < 0.05) or record.ID == '.':
+            print(record.info)
+            maf = record.info.get('MAF', None)
+            if (maf is not None and maf < 0.05) or record.id == '.':
                 return
         result = []
         ref_read_sum = 0
@@ -831,8 +832,8 @@ class InputParser:
             result.append(
                 (ref_read_sum, alt_read_sum)
             )
-        if record.CHROM not in self.chromosomes_order:
-            self.chromosomes_order.append(record.CHROM)
+        if record.chrom not in self.chromosomes_order:
+            self.chromosomes_order.append(record.chrom)
         return result
 
     @staticmethod
@@ -879,9 +880,9 @@ class InputParser:
     @staticmethod
     def check_record(record, previous_line):
         if previous_line is not None:
-            if record.CHROM == previous_line.CHROM:
+            if record.chrom == previous_line.chrom:
                 if record.start < previous_line.start:
-                    raise ValueError(f'VCF file not sorted. Please sort file before use')
+                    raise ValueError(f'VCF file is not sorted. Please sort input file.')
         return record
 
     def read_vcf(self, file_path, sample_list=None) -> pd.DataFrame:
@@ -897,7 +898,6 @@ class InputParser:
             print(f'Please install pysam package (e.g. with conda install pysam --channel bioconda)')
             raise e
         vcfReader = VariantFile(file_path, 'r')
-        print(vcfReader)
         if sample_list is None:
             sample_indices = None
         elif all(isinstance(sample, int) for sample in sample_list):
@@ -917,8 +917,8 @@ class InputParser:
             filter_result = self._filter_record(record, line_number, sample_indices)
             if filter_result:
                 for counts in filter_result:
-                    result.append([record.CHROM, record.start,
-                                   record.end, record.ID, record.REF, record.ALT[0], *counts])
+                    result.append([record.chrom, record.start,
+                                   record.stop, record.id, record.ref, record.alts[0], *counts])
         return pd.DataFrame.from_records(result, columns=df_columns)
 
 
