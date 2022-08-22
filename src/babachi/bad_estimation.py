@@ -801,7 +801,10 @@ class InputParser:
                 return
             if record.ref not in nucleotides or record.alts[0] not in nucleotides:
                 return
-            maf = record.info.get('MAF', None)
+            if maf in record.info:
+                maf = record.info.get('MAF', None)
+            else:
+                maf = None
             if (maf is not None and maf < 0.05) or record.id == '.':
                 return
         result = []
