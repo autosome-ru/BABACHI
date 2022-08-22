@@ -72,9 +72,9 @@ from docopt import docopt
 from .visualize_segmentation import BabachiVisualizer
 from collections import namedtuple
 
-bedfile_line = namedtuple('BED_file_line', field_names=[
-    'chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts'
-])
+
+df_header = ['chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts', 'sample_id']
+bedfile_line = namedtuple('BED_file_line', field_names=df_header)
 
 root_logger = logging.getLogger(__name__)
 
@@ -811,6 +811,7 @@ class InputParser:
         ref_read_sum = 0
         alt_read_sum = 0
         filter_out = True
+        names = []
         for sample_id, sample in samples.items():
             sample_ref_read_count, sample_alt_read_count = map(int, sample['AD'])
             if self.to_filter:
@@ -822,9 +823,10 @@ class InputParser:
             if self.snp_strategy == 'ADD':
                 ref_read_sum += sample_ref_read_count
                 alt_read_sum += sample_alt_read_count
+                names.append(sample)
             elif self.snp_strategy == 'SEP':
                 result.append(
-                    (sample_ref_read_count, sample_alt_read_count)
+                    (sample_ref_read_count, sample_alt_read_count, sample)
                 )
             else:
                 raise ValueError
@@ -832,7 +834,7 @@ class InputParser:
             return
         if self.snp_strategy == 'ADD':
             result.append(
-                (ref_read_sum, alt_read_sum)
+                (ref_read_sum, alt_read_sum, ','.join(names))
             )
         if record.chrom not in self.chromosomes_order:
             self.chromosomes_order.append(record.chrom)
@@ -848,8 +850,7 @@ class InputParser:
         :return: pd.DataFrame
         """
         df = pd.read_table(file_path, header=None, comment='#')
-        names = ['chr', 'start', 'end', 'ID', 'ref', 'alt',
-                 'ref_counts', 'alt_counts']
+        names = df_header[:-1]
         df = df[df.columns[:len(names)]]
         df.columns = names
         if self.to_filter:
@@ -913,7 +914,7 @@ class InputParser:
                 sample_indices.append(vcfReader.header.samples[sample_index])
         previous_line = None
         result = []
-        df_columns = ['chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts']
+        df_columns = df_header
         for line_number, record in enumerate(vcfReader.fetch(), 1):
             previous_line = self.check_record(record, previous_line)
             filter_result = self._filter_record(record, line_number, sample_indices)
@@ -1230,8 +1231,9 @@ def segmentation_start():
     except Exception as e:
         raise ValueError("Can not read the input file", *e.args)
     if args['filter']:
+        snps = snps[df_header]
         snps['#chr'] = snps['chr']
-        snps[['#chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts']].to_csv(
+        snps[['#chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts', 'sample_id']].to_csv(
             make_file_path_from_dir(args['--output'], file_name, 'snps.bed'),
             sep='\t', index=False)
         exit(0)
