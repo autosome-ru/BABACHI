@@ -659,7 +659,7 @@ class ChromosomeSegmentation:  # chromosome
 
 
 class GenomeSegmentator:  # gs
-    def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', scoring_mode='marginal',
+    def __init__(self, snps_collection, out, segmentation_mode='corrected', scoring_mode='marginal',
                  states=None,
                  b_penalty=4, prior=None, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
                  post_seg_filter=0,
@@ -698,13 +698,12 @@ class GenomeSegmentator:  # gs
         self.fast = True  # use numba to optimize execution speed
         self.min_seg_snps = min_seg_snps  # minimal BAD segment length in SNPs
         self.min_seg_bp = min_seg_bp  # minimal BAD segment length in bp
-        self.chromosomes_order = chromosomes_order  # ['chr1', 'chr2', ...]
 
         self.chr_segmentations = []  # list of ChromosomeSegmentation instances
 
         self.chromosomes_wrapper = init_wrapper(chromosomes_wrapper)
 
-        for chromosome in self.chromosomes_order:
+        for chromosome in self.snps_collection.chromosomes_order:
             chr_segmentation = ChromosomeSegmentation(self, chromosome,
                                                       self.chromosomes_wrapper.chromosomes[chromosome] - 1)
             self.logger.debug('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
@@ -1244,7 +1243,6 @@ def segmentation_start():
         mode = 'corrected'
         t = time.perf_counter()
         GS = GenomeSegmentator(snps_collection=snps_collection.data,
-                               chromosomes_order=snps_collection.chromosomes_order,
                                out=badmap_file_path,
                                segmentation_mode=mode,
                                states=args['--states'],

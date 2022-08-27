@@ -1,3 +1,5 @@
 /venv/
 /dist/
 /BAD_segmentation.egg-info/
+/src/babachi.egg-info/
+/build
