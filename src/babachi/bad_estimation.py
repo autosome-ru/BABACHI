@@ -1244,7 +1244,7 @@ def segmentation_start():
         mode = 'corrected'
         t = time.perf_counter()
         GS = GenomeSegmentator(snps_collection=snps_collection.data,
-                               chromosomes_order=snps_collection.chromosome_order,
+                               chromosomes_order=snps_collection.chromosomes_order,
                                out=badmap_file_path,
                                segmentation_mode=mode,
                                states=args['--states'],
