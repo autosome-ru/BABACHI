@@ -826,7 +826,7 @@ class InputParser:
                 names.append(sample)
             elif self.snp_strategy == 'SEP':
                 result.append(
-                    (sample_ref_read_count, sample_alt_read_count, sample)
+                    (sample_ref_read_count, sample_alt_read_count, sample.name)
                 )
             else:
                 raise ValueError
@@ -1236,6 +1236,7 @@ def segmentation_start():
         snps[['#chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts', 'sample_id']].to_csv(
             make_file_path_from_dir(args['--output'], file_name, 'snps.bed'),
             sep='\t', index=False)
+        root_logger.info('Succesfully converted to BED')
         exit(0)
         return
     snps_collection = GenomeSNPsHandler(snps, chrom_wrapper)
