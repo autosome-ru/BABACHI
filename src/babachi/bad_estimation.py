@@ -1,32 +1,43 @@
 """
 Usage:
     babachi (<file> | --test) [options]
-    babachi visualize <file> (-b <badmap>| --badmap <badmap>)
+    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [options]
+    babachi filter <file> [options]
 
 Arguments:
-    <file>            Path to input file in tsv format with columns:
-                      chr pos ID ref_base alt_base ref_read_count alt_read_count
-                      Expected to be sorted be (chr, pos)
-    <badmap>          Path to badmap .bed format file
+    <file>            Path to input VCF file. Expected to be sorted by (chr, pos)
+    <path>            Path to file
     <int>             Non negative integer
     <float>           Non negative number
-    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
+    <states-string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3).
+                      Each state must be >= 1
+    <samples-string>  Comma-separated sample names or indices
+    <prior-string>    One of "uniform" or "geometric"
+    <file-or-link>    Path to existing file or link
 
 
 Required arguments:
-    --test                                  Run segmentation on test file
-    -b <badmap>, --badmap <badmap>          Input badmap file
+    -b <path>, --badmap <path>              Input badmap file
     -O <path>, --output <path>              Output directory or file path. [default: ./]
+    --test                                  Run segmentation on test file
 
 Optional arguments:
-    -h, --help                              Show help.
-    -q, --quiet                             Suppress log messages.
-    --force-sort                            Chromosomes will be sorted in numerical order
-
-    --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
+    -h, --help                              Show help
+    -v, --verbose                           Write debug messages
+    --sample-list <samples-string>          Comma-separated sample names or integer indices to use in input VCF
+    --snp-strategy <snp-strategy>           Strategy to take into account SNPs on the same position.
+                                            Either add read counts 'ADD' or treat as a separate events 'SEP'. [default: SEP]
+    -n, --no-filter                         Skip filtering of input file
+    -f, --force-sort                        Chromosomes will be sorted in numerical order
+    -j <int>, --jobs <int>                  Number of parallel jobs to use,
+                                            won't be more than # of chromosomes [default: 1]
+    --chrom-sizes <file-or-link>            File with chromosome sizes (can be link), default is hg38
+    -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
+    -p <string>, --prior <prior-string>     Prior to use. uniform or geometric [default: uniform]
+    -g <float>, --geometric-prior <float>   Coefficient for geometric prior [default: 0.98]
+    -s <string>, --states <states-string>   States string [default: 1,2,3,4,5,6]
     -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
-    --states <string>                       States string [default: 1,2,3,4,5,6]
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
     -R <int>, --min-seg-bp <int>            Only allow segments containing R or more base pairs [default: 1000]
     -P <int>, --post-segment-filter <int>   Remove segments with less than P unique SNPs (IDs/positions) from output [default: 0]
@@ -36,26 +47,39 @@ Optional arguments:
 
 Visualization:
     --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
-                                            Will create a directory in output path for the .svg visualizations.
+                                            Will create a directory in output path for the <ext> visualizations
+    -z, --zip                               Zip visualizations directory
+    -e <ext>, --ext <ext>                   Extension to save visualizations with [default: svg]
 """
-
+import logging
 import math
+import multiprocessing as mp
 import re
+import sys
+from urllib.request import Request, urlopen
 
 import numpy as np
+import pandas as pd
+import validators
 from numba import njit
 import os.path
-
+from scipy.special import logsumexp
 from schema import Schema, And, Use, SchemaError, Const, Or
 import time
-from .helpers import ChromosomePosition, pack
+from .helpers import ChromosomesWrapper, pack, nucleotides, init_wrapper, GenomeSNPsHandler
 from abc import ABC, abstractmethod
 from docopt import docopt
-from .visualize_segmentation import init_from_snps_collection
+from .visualize_segmentation import BabachiVisualizer
+from collections import namedtuple
 
-# TODO check if input sorted
+
+df_header = ['chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts', 'sample_id']
+bedfile_line = namedtuple('BED_file_line', field_names=df_header)
+
+root_logger = logging.getLogger(__name__)
 
 
+# TODO Use click instead of docopt
 class BADSegmentsContainer:
     allowed_fields = ['boundaries_positions', 'BAD_estimations', 'likelihoods', 'snps_counts', 'covers',
                       'snp_id_counts']
@@ -93,7 +117,7 @@ class BADSegmentsContainer:
                     if isinstance(boundary, tuple):
                         current_position = boundary[1]
                     else:
-                        current_position = 1
+                        current_position = 0
                 elif isinstance(boundary, tuple):
                     yield BADSegment(
                         chromosome_segmentation.chromosome,
@@ -132,8 +156,8 @@ class BADSegmentsContainer:
 
 
 class BADSegment:
-    def __init__(self, chr, start, end, BAD, likelihoods, snps_count, total_cover, snp_id_count):
-        self.chr = chr
+    def __init__(self, chrom, start, end, BAD, likelihoods, snps_count, total_cover, snp_id_count):
+        self.chr = chrom
         self.start = start
         self.end = end
         self.BAD = BAD
@@ -192,7 +216,9 @@ class Segmentation(ABC):
         p = 1.0 / (1.0 + BAD)
         log_norm = np.log1p(self.get_norm(p, N, self.sub_chromosome.gs.allele_reads_tr) +
                             self.get_norm(1 - p, N, self.sub_chromosome.gs.allele_reads_tr))
-        if (self.sub_chromosome.gs.individual_likelihood_mode in ('corrected', 'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
+        if (self.sub_chromosome.gs.individual_likelihood_mode in (
+                'corrected',
+                'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm
         elif self.sub_chromosome.gs.individual_likelihood_mode == 'corrected':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm \
@@ -236,8 +262,7 @@ class Segmentation(ABC):
 
     def modify_L(self):
         if self.sub_chromosome.gs.scoring_mode == 'marginal':
-            Q = np.sort(self.P, axis=0)
-            self.L[:, :] = Q[-1, :, :] + np.log1p(np.sum(np.exp(Q[:-2, :, :] - Q[-1, :, :]), axis=0))
+            self.L[:, :] = logsumexp(self.P, axis=0)
         elif self.sub_chromosome.gs.scoring_mode == 'maximum':
             self.L[:, :] = self.P.max(axis=0)
 
@@ -251,7 +276,7 @@ class Segmentation(ABC):
 
     def initialize_boundaries_arrays(self):
         self.score = [0] * (self.candidates_count + 1)
-        self.has_boundary_cache = [[False] * self.candidates_count for i in range(self.candidates_count + 1)]
+        self.has_boundary_cache = [[False] * self.candidates_count for _ in range(self.candidates_count + 1)]
         self.best_boundaries_count = [0] * (self.candidates_count + 1)
 
     @abstractmethod
@@ -351,7 +376,7 @@ class AtomicRegionSegmentation(Segmentation):
             self.best_boundaries_count[i] = sum(self.has_boundary_cache[i])
 
         self.boundaries_indexes = [self.candidate_numbers[j] for j in range(self.candidates_count) if
-                                  self.has_boundary_cache[-1][j]]
+                                   self.has_boundary_cache[-1][j]]
 
 
 class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
@@ -489,32 +514,29 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         if self.total_snps_count == 0:
             return
 
-        if self.gs.verbose:
-            print('Constructing initial SNP-wise likelihoods...')
+        self.gs.logger.debug('Constructing initial SNP-wise likelihoods...')
         self.construct_initial_likelihood_matrices()
         atomic_regions_limits = self.split_into_overlapping_regions(self.candidates_count + 1,
                                                                     self.gs.atomic_region_length,
                                                                     self.gs.overlap)
         boundary_set = set()
         counter = 0
-        if self.gs.verbose:
-            print('Segmenting atomic regions:')
+        self.gs.logger.debug('Segmenting atomic regions:')
         for first, last in atomic_regions_limits:
             counter += 1
-            if self.gs.verbose:
-                print(
-                    'Making {} out of {} atomic region{} from SNP {} to {} for {} (subchromosome {} of {}).'.format(
-                        counter, len(atomic_regions_limits), 's' * bool((len(atomic_regions_limits) - 1)),
-                        first, last, self.chromosome_segmentation.chromosome,
-                        self.index_in_chromosome,
-                        len(self.chromosome_segmentation.get_sub_chromosomes_slices())))
+            self.gs.logger.debug(
+                'Making {} out of {} atomic region{} from SNP {} to {} for {} (subchromosome {} of {}).'.format(
+                    counter, len(atomic_regions_limits), 's' * bool((len(atomic_regions_limits) - 1)),
+                    first, last, self.chromosome_segmentation.chromosome,
+                    self.index_in_chromosome,
+                    len(self.chromosome_segmentation.get_sub_chromosomes_slices())))
             atomic_region_segmentation = AtomicRegionSegmentation(self, first, last)
             atomic_region_segmentation.estimate()
             boundary_set |= set(atomic_region_segmentation.boundaries_indexes)
         self.candidate_numbers = sorted(list(boundary_set))
         self.candidates_count = len(self.candidate_numbers)
-        if self.gs.verbose:
-            print('Unique SNPs positions in subchromosome {}: {}'.format(self.index_in_chromosome, self.unique_snp_positions))
+        self.gs.logger.debug('Unique SNPs positions in subchromosome {}: {}'.format(self.index_in_chromosome,
+                                                                                    self.unique_snp_positions))
 
         self.estimate()
         self.estimate_BAD()
@@ -527,7 +549,7 @@ class ChromosomeSegmentation:  # chromosome
         self.chromosome = chromosome  # name
         self.length = length  # length, bp
 
-        self.allele_read_counts_array, self.snps_positions = self.unpack_snp_collection()  # unpack
+        self.allele_read_counts_array, self.snps_positions = self.unpack_snp_collection()
         self.total_snps_count = len(self.allele_read_counts_array)
         self.segments_container = BADSegmentsContainer()
         if self.total_snps_count == 0:
@@ -536,12 +558,11 @@ class ChromosomeSegmentation:  # chromosome
         self.critical_gap_factor = 1 - 10 ** (- 1 / np.sqrt(self.total_snps_count))
         self.effective_length = self.snps_positions[-1] - self.snps_positions[0]
 
-    def unpack_snp_collection(self):  # TODO: redundant reshaping
+    def unpack_snp_collection(self):
         try:
-            positions, snps = zip(
-                *((pos, (ref_count, alt_count)) for pos, ref_count, alt_count in
-                  self.gs.snps_collection[self.chromosome])
-            )
+            data = self.gs.snps_collection[self.chromosome].data
+            positions = data[0]
+            snps = np.stack(data[1:], axis=-1)
         except ValueError:
             positions, snps = [], []
         return np.array(snps, dtype=np.int_), np.array(positions, dtype=np.int_)
@@ -575,9 +596,9 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self):
-        print('Processing SNPs in {}'.format(self.chromosome))
+        self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
-            return
+            return self
 
         start_t = time.perf_counter()
         self.adjust_critical_gap()
@@ -587,10 +608,9 @@ class ChromosomeSegmentation:  # chromosome
             self.segments_container.boundaries_positions.append(self.snps_positions[0])
         else:
             self.segments_container.boundaries_positions.append((1, self.snps_positions[0]))
-        if self.gs.verbose:
-            print(
-                'Stage 1 subchromosomes (start SNP index, end SNP index): {}'.format(
-                    self.get_sub_chromosomes_slices()))
+        self.gs.logger.debug(
+            'Stage 1 subchromosomes (start SNP index, end SNP index): {}'.format(
+                self.get_sub_chromosomes_slices()))
 
         for part, (st, ed) in enumerate(self.get_sub_chromosomes_slices(), 1):
             # check
@@ -609,10 +629,9 @@ class ChromosomeSegmentation:  # chromosome
                                                            self.snps_positions[st: ed], part)
                 start_t = time.perf_counter()
                 sub_chromosome.estimate_sub_chr()
-                if self.gs.verbose:
-                    print('Subchromosome time: {}, subchromosome SNPs: {}'.format(
-                        time.perf_counter() - start_t, unique_positions
-                    ))
+                self.gs.logger.debug('Subchromosome time: {}, subchromosome SNPs: {}'.format(
+                    time.perf_counter() - start_t, unique_positions
+                ))
 
                 self.segments_container += sub_chromosome.segments_container
             if ed != self.total_snps_count:
@@ -624,34 +643,41 @@ class ChromosomeSegmentation:  # chromosome
         else:
             self.segments_container.boundaries_positions.append((self.snps_positions[-1] + 1, self.length))
 
-        if self.gs.verbose:
-            print(
-                '\nEstimated BADs: {}\nSNP counts: {}\nSNP IDs counts: {}\nCritical gap: {:.0f}bp'
-                '\nBoundaries positions (location[deletion length (if any)]): {}'.format(
-                    '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
-                    self.segments_container.snps_counts, self.segments_container.snp_id_counts,
-                    self.critical_gap_factor * self.effective_length,
-                    '[' + ', '.join(map(
-                        lambda x: '{:.2f}Mbp'.format(x/1000000) if isinstance(x, (int, float, np.int_, np.float_)) else (
-                            '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0]/1000000, (x[1] - x[0])/1000000)),
-                        self.segments_container.boundaries_positions)) + ']'))
-            print('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
+        self.gs.logger.debug(
+            '\nEstimated BADs: {}\nSNP counts: {}\nSNP IDs counts: {}\nCritical gap: {:.0f}bp'
+            '\nBoundaries positions (location[deletion length (if any)]): {}'.format(
+                '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
+                self.segments_container.snps_counts, self.segments_container.snp_id_counts,
+                self.critical_gap_factor * self.effective_length,
+                '[' + ', '.join(map(
+                    lambda x: '{:.2f}Mbp'.format(x / 1000000) if isinstance(x,
+                                                                            (int, float, np.int_, np.float_)) else (
+                        '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0] / 1000000, (x[1] - x[0]) / 1000000)),
+                    self.segments_container.boundaries_positions)) + ']'))
+        self.gs.logger.debug('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
+        return self
 
 
 class GenomeSegmentator:  # gs
-    def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', scoring_mode='marginal', states=None,
-                 b_penalty=4, prior=None, verbose=False, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0, post_seg_filter=0,
-                 atomic_region_size=600, chr_filter=100, subchr_filter=3):
+    def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', scoring_mode='marginal',
+                 states=None,
+                 b_penalty=4, prior=None, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
+                 post_seg_filter=0,
+                 jobs=1,
+                 atomic_region_size=600, chr_filter=100, subchr_filter=3, logger_level=logging.INFO,
+                 chromosomes_wrapper=None):
 
-        self.verbose = verbose
+        self.logger = root_logger
+        self.logger_level = logger_level
         self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
         self.scoring_mode = scoring_mode  # marginal or maximum
         self.b_penalty = b_penalty  # boundary penalty coefficient k ('CAIC' * k)
         self.allele_reads_tr = allele_reads_tr  # "minimal read count on each allele" snp filter
         self.post_seg_filter = post_seg_filter  # min number of SNPs in the segment to be included in the output
+        self.jobs = jobs
 
         if states is None or len(states) == 0:
-            self.BAD_list = [1, 2, 3, 4, 5]
+            self.BAD_list = [1, 2, 3, 4, 5, 6]
         else:
             self.BAD_list = sorted(states)
         if prior is None:
@@ -676,14 +702,32 @@ class GenomeSegmentator:  # gs
 
         self.chr_segmentations = []  # list of ChromosomeSegmentation instances
 
+        self.chromosomes_wrapper = init_wrapper(chromosomes_wrapper)
+
         for chromosome in self.chromosomes_order:
-            chr_segmentation = ChromosomeSegmentation(self, chromosome, ChromosomePosition.chromosomes[chromosome])
-            if self.verbose:
-                print('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
+            chr_segmentation = ChromosomeSegmentation(self, chromosome,
+                                                      self.chromosomes_wrapper.chromosomes[chromosome] - 1)
+            self.logger.debug('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
+            self.logger.debug('{} length: {}'.format(chromosome, self.chromosomes_wrapper.chromosomes[chromosome]))
             self.chr_segmentations.append(chr_segmentation)
         else:
-            if self.verbose:
-                print('\n')
+            self.logger.debug('-----------------------------------------')
+
+    def __getstate__(self):
+        state = self.__dict__
+        if 'logger' in state:
+            del state['logger']
+        return state
+
+    def __setstate__(self, state):
+        for name, value in state.items():
+            setattr(self, name, value)
+        assert not hasattr(self, 'logger')
+        self.logger = root_logger
+        set_logger_config(self.logger, self.logger_level)
+
+    def start_chromosome(self, j):
+        return self.chr_segmentations[j].estimate_chr()
 
     # noinspection PyTypeChecker
     def estimate_BAD(self):
@@ -692,11 +736,28 @@ class GenomeSegmentator:  # gs
                 pack(['#chr', 'start', 'end', 'BAD', 'SNP_count', 'SNP_ID_count', 'sum_cover'] + ['Q{:.2f}'.format(BAD)
                                                                                                   for BAD in
                                                                                                   self.BAD_list]))
-            for j in range(len(self.chr_segmentations)):
-                chromosome = self.chr_segmentations[j]
-                chromosome.estimate_chr()
-                self.write_BAD_to_file(chromosome, outfile)
-                self.chr_segmentations[j] = None
+            jobs = min(self.jobs,
+                       len(self.chr_segmentations),
+                       max(1, mp.cpu_count()))
+            segmentations = [i for i in range(len(self.chr_segmentations))]
+            if jobs == 0:
+                return
+            elif jobs == 1:
+                for i in segmentations:
+                    res = self.start_chromosome(i)
+                    self.write_BAD_to_file(res, outfile)
+                    self.chr_segmentations[i] = None
+            else:
+                try:
+                    ctx = mp.get_context("forkserver")
+                except ValueError as e:
+                    print('forkserver is not available for Windows')
+                    raise e
+                with ctx.Pool(jobs) as p:
+                    for i, res in zip(segmentations,
+                                      p.map(self.start_chromosome, segmentations)):
+                        self.write_BAD_to_file(res, outfile)
+                        self.chr_segmentations[i] = None
 
     def write_BAD_to_file(self, chromosome_segmentation, outfile):
         segments_generator = chromosome_segmentation.segments_container.get_BAD_segments(chromosome_segmentation)
@@ -713,71 +774,154 @@ class GenomeSegmentator:  # gs
                     yield segment
 
 
-def parse_input_file(opened_file, allele_reads_tr=5, force_sort=False):
-    snps_collection = {chromosome: [] for chromosome in ChromosomePosition.chromosomes}
-    chromosomes_order = []
-    for line_number, line in enumerate(opened_file, 1):
-        if line[0] == '#':
-            continue
+class InputParser:
+    def __init__(self, allele_reads_tr=5, snp_strategy='SEP', force_sort=False, to_filter=True,
+                 chromosomes_wrapper=None):
+        self.allele_reads_tr = allele_reads_tr
+        self.to_filter = to_filter
+        self.force_sort = force_sort
+        self.logger = root_logger
+        self.snp_strategy = snp_strategy
+        self.chromosomes_wrapper = init_wrapper(chromosomes_wrapper)
+        if force_sort:
+            self.chromosomes_order = self.chromosomes_wrapper.sorted_chromosomes
         else:
-            parsed_line = line.strip().split('\t')
-            if parsed_line[0] not in ChromosomePosition.chromosomes:
-                print('Invalid chromosome name: {} in line #{}'.format(parsed_line[0], line_number))
-                return False
-            try:
-                if int(parsed_line[1]) <= 0 or int(parsed_line[5]) < 0 or int(parsed_line[6]) < 0:
-                    raise ValueError
-            except ValueError:
-                print('Position, Reference allele read counts, Alternative allele read counts must be'
-                      ' a non-negative integer in line #{}'.format(line_number))
-                raise
-        ref_read_count = int(parsed_line[5])
-        alt_read_count = int(parsed_line[6])
-        if parsed_line[0] not in chromosomes_order:
-            chromosomes_order.append(parsed_line[0])
-        if ref_read_count < allele_reads_tr or alt_read_count < allele_reads_tr:
-            continue
+            self.chromosomes_order = []
 
-        snps_collection[parsed_line[0]].append((int(parsed_line[1]), ref_read_count, alt_read_count))
-    if force_sort:
-        chromosomes_order = ChromosomePosition.sorted_chromosomes
-    return snps_collection, chromosomes_order, opened_file.name
-
-
-def convert_frac_to_float(string):
-    if re.match(r"^[1-9]+[0-9]*/[1-9]+[0-9]*$", string):
-        num, denom = string.split('/')
-        if int(denom) <= 0:
-            return False
+    def _filter_record(self, record, line_number, sample_id_list):
+        if sample_id_list is not None:
+            samples = [record.samples[sample_id] for sample_id in sample_id_list]
         else:
-            value = int(num) / int(denom)
-    elif re.match(r"^[1-9]+[0-9]*\.[1-9]+[0-9]*$", string):
-        try:
-            value = float(string)
-        except ValueError:
-            return False
-    elif re.match(r"^[1-9]+[0-9]*$", string):
-        try:
-            value = int(string)
-        except ValueError:
-            return False
-    else:
-        return False
-    if value >= 1:
-        return value
-    else:
-        return False
+            samples = record.samples
+        if record.chrom not in self.chromosomes_wrapper.chromosomes:
+            self.logger.warning(f'Chromosome length for {record.chrom} in line #{line_number} not available')
+            return
+        if self.to_filter:
+            if len(record.alts) != 1:
+                return
+            if record.ref not in nucleotides or record.alts[0] not in nucleotides:
+                return
+            if 'MAF' in record.info:
+                maf = record.info.get('MAF', None)
+            else:
+                maf = None
+            if (maf is not None and maf < 0.05) or record.id == '.':
+                return
+        result = []
+        ref_read_sum = 0
+        alt_read_sum = 0
+        filter_out = True
+        names = []
+        for sample_id, sample in samples.items():
+            sample_ref_read_count, sample_alt_read_count = map(int, sample['AD'])
+            if self.to_filter:
+                if min(sample_ref_read_count, sample_alt_read_count) < self.allele_reads_tr:
+                    continue
+                if '/'.join(map(str, sample['GT'])) != '0/1':
+                    continue
+            filter_out = False
+            if self.snp_strategy == 'ADD':
+                ref_read_sum += sample_ref_read_count
+                alt_read_sum += sample_alt_read_count
+                names.append(sample)
+            elif self.snp_strategy == 'SEP':
+                result.append(
+                    (sample_ref_read_count, sample_alt_read_count, sample.name)
+                )
+            else:
+                raise ValueError
+        if filter_out:
+            return
+        if self.snp_strategy == 'ADD':
+            result.append(
+                (ref_read_sum, alt_read_sum, ','.join(names))
+            )
+        if record.chrom not in self.chromosomes_order:
+            self.chromosomes_order.append(record.chrom)
+        return result
 
+    @staticmethod
+    def df_to_counts(df):
+        return list(zip(*df[['start', 'ref_counts', 'alt_counts']].transpose().to_numpy()))
 
-def check_states(string):
-    if not string:
-        return False
-    string = string.strip().split(',')
-    ret_val = list(map(convert_frac_to_float, string))
-    if not all(ret_val):
-        return False
-    else:
-        return ret_val
+    def read_bed(self, file_path) -> pd.DataFrame:
+        """
+        :param file_path: input bed file path
+        :return: pd.DataFrame
+        """
+        df = pd.read_table(file_path, header=None, comment='#')
+        df = df[df.columns[:len(df_header)]]
+        df.columns = df_header
+        if self.to_filter:
+            df = df[df['chr'].isin(self.chromosomes_wrapper.chromosomes)]
+            df = df[df[['ref_counts', 'alt_counts']].min(axis=1) >= self.allele_reads_tr]
+        return df
+
+    @staticmethod
+    def check_if_vcf(file_path):
+        result = True
+        with open(file_path) as f:
+            for line in f:
+                if line.startswith('#'):
+                    continue
+                if re.match(r'^chr(\d+|X|Y)\t\d+\t\d+\t', line):
+                    result = False
+                f.seek(0)
+                break
+        return result
+
+    def read_file(self, file_path, samples_list=None) -> pd.DataFrame:
+        is_vcf = samples_list is not None or self.check_if_vcf(file_path)
+        if is_vcf:
+            self.logger.debug('Reading as VCF file')
+            return self.read_vcf(file_path, sample_list=samples_list)
+        else:
+            self.logger.debug('Reading as BED file')
+            return self.read_bed(file_path)
+
+    @staticmethod
+    def check_record(record, previous_line):
+        if previous_line is not None:
+            if record.chrom == previous_line.chrom:
+                if record.start < previous_line.start:
+                    raise ValueError(f'VCF file is not sorted. Please sort input file.')
+        return record
+
+    def read_vcf(self, file_path, sample_list=None) -> pd.DataFrame:
+        """
+        :param sample_list: optional, list of sample names or sample IDs to work with
+        :param file_path: input VCF file
+        :return: None pd.DataFrame
+        """
+        self.logger.info('Reading input file...')
+        try:
+            from pysam import VariantFile
+        except ImportError as e:
+            print(f'Please install pysam package (https://pysam.readthedocs.io/en/latest/installation.html)')
+            raise e
+        vcfReader = VariantFile(file_path, 'r')
+        if sample_list is None:
+            sample_indices = None
+        elif all(isinstance(sample, int) for sample in sample_list):
+            sample_indices = sample_list
+        else:
+            sample_indices = []
+            for sample in sample_list:
+                sample_index = vcfReader.header.samples.index(sample)
+                if sample_index == -1:
+                    raise ValueError('Error: Sample {} was not found in header'.format(sample))
+                sample_indices.append(vcfReader.header.samples[sample_index])
+        previous_line = None
+        result = []
+        df_columns = df_header
+        for line_number, record in enumerate(vcfReader.fetch(), 1):
+            previous_line = self.check_record(record, previous_line)
+            filter_result = self._filter_record(record, line_number, sample_indices)
+            if filter_result:
+                for counts in filter_result:
+                    result.append([record.chrom, record.start,
+                                   record.stop, record.id, record.ref, record.alts[0], *counts])
+        return pd.DataFrame.from_records(result, columns=df_columns)
 
 
 @njit(cache=True)
@@ -796,6 +940,7 @@ def fast_find_optimal_borders(
     score = np.zeros(candidates_count + 1, dtype=np.float64)
     best_boundaries_count = np.zeros(candidates_count + 1, dtype=np.int_)
     has_boundary_cache = np.zeros((candidates_count + 1, candidates_count), dtype=np.bool_)
+    unique_positions = None
     if min_seg_snps:
         unique_positions = np.zeros(candidates_count + 1)
         current_index = 0
@@ -825,8 +970,9 @@ def fast_find_optimal_borders(
                 if min_seg_snps or min_seg_bp:
                     last_index = candidate_numbers[i] + 1 - first_snp_number if i != candidates_count else -1
                     first_index = candidate_numbers[k] + 1 - first_snp_number
-                    if (min_seg_snps and unique_positions[last_index] - unique_positions[first_index] < min_seg_snps) or \
-                            (min_seg_bp and snps_positions[last_index] - snps_positions[first_index] < min_seg_bp):
+                    if (min_seg_snps and unique_positions[last_index] -
+                        unique_positions[first_index] < min_seg_snps) or (
+                            min_seg_bp and snps_positions[last_index] - snps_positions[first_index] < min_seg_bp):
                         z_penalty = -inf_score
 
                 likelihood = score[k] + L[k + 1, i]
@@ -849,17 +995,130 @@ def fast_find_optimal_borders(
     return boundaries_indexes
 
 
+def convert_frac_to_float(string):
+    if re.match(r"^[1-9]+[0-9]*/[1-9]+[0-9]*$", string):
+        num, denom = string.split('/')
+        if int(denom) <= 0:
+            return False
+        else:
+            value = int(num) / int(denom)
+    elif re.match(r"^[1-9]+[0-9]*\.[1-9]+[0-9]*$", string):
+        try:
+            value = float(string)
+        except ValueError:
+            return False
+    elif re.match(r"^[1-9]+[0-9]*$", string):
+        try:
+            value = int(string)
+        except ValueError:
+            return False
+    else:
+        return False
+    if value >= 1:
+        return value
+    else:
+        return False
+
+
+def check_states(string):
+    if not string:
+        raise ValueError
+    string = string.strip().split(',')
+    ret_val = list(map(convert_frac_to_float, string))
+    if not all(ret_val):
+        raise ValueError
+    else:
+        return ret_val
+
+
+def check_samples(string):
+    if not string:
+        raise ValueError
+    string = string.strip().split(',')
+    int_conv = []
+    for sample in string:
+        try:
+            int_elem = int(sample)
+            if int_elem >= 0:
+                int_conv.append(int_elem)
+        except ValueError:
+            pass
+    if len(int_conv) == len(string):
+        return int_conv
+    else:
+        return string
+
+
+def make_file_path_from_dir(out_path, file_name, ext='badmap.bed'):
+    if os.path.isdir(out_path):
+        return os.path.join(out_path, f'{file_name}.{ext}')
+    else:
+        return out_path
+
+
+def set_logger_config(logger, level):
+    logger.setLevel(level)
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(level)
+        formatter = logging.Formatter('%(asctime)s  %(levelname)s  %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+
+def get_prior(states, string, p):
+    if string == 'uniform':
+        return None
+    minimum_ploidy = {
+        1: 2,
+        4 / 3: 7,
+        3 / 2: 5,
+        2: 3,
+        5 / 2: 7,
+        3: 4,
+        4: 5,
+        5: 6,
+        6: 7,
+    }
+    return {
+        state:
+            p ** (minimum_ploidy[state] - 1)
+        for state in states
+    }
+
+
+def read_url_file(url):
+    url_request = Request(url)
+    return urlopen(url_request)
+
+
+def read_snps_file(file_path, chrom_sizes=None, snp_strategy='SEP', samples_list=None,
+                   allele_reads_tr=5, force_sort=False, to_filter=False):
+    if chrom_sizes is not None:
+        chrom_sizes_df = pd.read_table(chrom_sizes,
+                                       header=None, names=['chromosome', 'length'])
+        chromosomes_wrapper = ChromosomesWrapper(chrom_sizes_df)
+    else:
+        chromosomes_wrapper = ChromosomesWrapper()
+    input_parser = InputParser(
+        allele_reads_tr=allele_reads_tr,
+        force_sort=force_sort,
+        to_filter=to_filter,
+        snp_strategy=snp_strategy,
+        chromosomes_wrapper=chromosomes_wrapper,
+    )
+    file = input_parser.read_file(file_path=file_path, samples_list=samples_list)
+    return file, chromosomes_wrapper
+
+
 def segmentation_start():
     args = docopt(__doc__)
     if args['--test']:
-        args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests/test.tsv')
+        args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests', 'test.bed')
 
     schema = Schema({
         '<file>': And(
             Const(os.path.exists, error='Input file should exist'),
-            Use(open, error='Input file should be readable'),
-            Use(lambda x: parse_input_file(x, int(args['--allele-reads-tr']), args["--force-sort"]),
-                error='Wrong input file format')
         ),
         '--boundary-penalty': And(
             Use(float),
@@ -872,6 +1131,22 @@ def segmentation_start():
         '--min-seg-bp': And(
             Use(int),
             Const(lambda x: x >= 0), error='Min segment length coefficient should be non negative integer'
+        ),
+        '--prior': Const(
+            lambda x: x in ('uniform', 'geometric'),
+            error='Invalid prior string. Must be "uniform" or "geometric"'
+        ),
+        '--snp-strategy': Const(
+            lambda x: x in ('ADD', 'SEP'),
+            error='SNP strategy should be either ADD or SEP'
+        ),
+        '--chrom-sizes': Or(
+            Const(lambda x: x is None),
+            And(
+                Const(validators.url, error='Not a valid URL'),
+                Use(read_url_file)
+            ),
+            Const(os.path.exists, error='File should exist')
         ),
         '--badmap': Or(
             Const(lambda x: x is None and not args['visualize']),
@@ -888,11 +1163,17 @@ def segmentation_start():
                 Const(lambda x: not os.path.exists(x)),
                 Const(lambda x: os.access(os.path.dirname(x) if os.path.dirname(x) != '' else '.', os.W_OK),
                       error='No write permissions')
-            ),
+            )
         ),
         '--states': Use(
             check_states, error='''Incorrect value for --states.
             Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
+        ),
+        '--sample-list': Or(
+            Use(
+                check_samples, error='Invalid sample list'
+            ),
+            Const(lambda x: x is None),
         ),
         '--allele-reads-tr': And(
             Use(int),
@@ -914,6 +1195,12 @@ def segmentation_start():
             Use(int),
             Const(lambda x: x >= 200), error='Atomic region size (in SNPs) must be a non negative integer'
         ),
+        '--jobs': Use(int, error='Number of jobs should be positive integer'),
+        '--geometric-prior': And(
+            Use(float, error='Geometric prior coefficient should be a number'),
+            Const(lambda x: 0 <= x <= 1, error='Coefficient should be between 0 and 1')
+        ),
+        '--ext': str,
         str: bool
     })
     try:
@@ -922,37 +1209,69 @@ def segmentation_start():
         print(__doc__)
         exit('Error: {}'.format(e))
 
-    snps_collection, chromosomes_order, full_name = args['<file>']
-    file_name = os.path.splitext(os.path.basename(full_name))[0]
-    if not args['visualize']:
-        badmap_file_path = args['--output']
-        if os.path.isdir(badmap_file_path):
-            badmap_file_path += file_name + '.bed'
+    verbose = args['--verbose']
+    if verbose:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
 
-        verbose = not args['--quiet']
+    set_logger_config(root_logger, level)
+    full_name = args['<file>']
+    file_name, ext = os.path.splitext(os.path.basename(full_name))
+
+    try:
+        snps, chrom_wrapper = read_snps_file(file_path=full_name,
+                                             chrom_sizes=args['--chrom-sizes'],
+                                             snp_strategy=args['--snp-strategy'],
+                                             allele_reads_tr=args['--allele-reads-tr'],
+                                             force_sort=args['--force-sort'],
+                                             to_filter=not args['--no-filter'] or args['filter'],
+                                             )
+    except Exception as e:
+        raise ValueError("Can not read the input file", *e.args)
+    if args['filter']:
+        snps = snps[df_header]
+        snps['#chr'] = snps['chr']
+        snps[['#chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts', 'sample_id']].to_csv(
+            make_file_path_from_dir(args['--output'], file_name, 'snps.bed'),
+            sep='\t', index=False)
+        root_logger.info('Succesfully converted to BED')
+        exit(0)
+        return
+    snps_collection = GenomeSNPsHandler(snps, chrom_wrapper)
+    if not args['visualize']:
+        badmap_file_path = make_file_path_from_dir(args['--output'], file_name)
         mode = 'corrected'
         t = time.perf_counter()
-        GS = GenomeSegmentator(snps_collection=snps_collection,
-                               chromosomes_order=chromosomes_order,
+        GS = GenomeSegmentator(snps_collection=snps_collection.data,
+                               chromosomes_order=snps_collection.chromosomes_order,
                                out=badmap_file_path,
                                segmentation_mode=mode,
                                states=args['--states'],
                                b_penalty=args['--boundary-penalty'],
-                               verbose=verbose,
                                allele_reads_tr=args['--allele-reads-tr'],
                                min_seg_snps=args['--min-seg-snps'],
                                min_seg_bp=args['--min-seg-bp'],
                                post_seg_filter=args['--post-segment-filter'],
                                atomic_region_size=args['--atomic-region-size'],
                                chr_filter=args['--chr-min-snps'],
-                               subchr_filter=args['--subchr-filter']
+                               subchr_filter=args['--subchr-filter'],
+                               prior=get_prior(args['--states'], args['--prior'],
+                                               args['--geometric-prior']),
+                               jobs=args['--jobs'],
+                               logger_level=level,  # workaround for mp logging,
+                               chromosomes_wrapper=chrom_wrapper,
                                )
         try:
             GS.estimate_BAD()
         except Exception as e:
             raise e
-        print('Total time: {} s'.format(time.perf_counter() - t))
+        root_logger.debug('Total time: {} s'.format(time.perf_counter() - t))
     else:
         badmap_file_path = args['--badmap']
     if args['--visualize'] or args['visualize']:
-        init_from_snps_collection(snps_collection=snps_collection, BAD_file=badmap_file_path)
+        visualizer = BabachiVisualizer(chromosomes_wrapper=chrom_wrapper)
+        visualizer.init_from_snps_collection(snps_collection=snps_collection,
+                                             to_zip=args['--zip'],
+                                             ext=args['--ext'],
+                                             BAD_file=badmap_file_path)

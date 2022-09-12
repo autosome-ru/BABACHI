@@ -6,12 +6,12 @@ the precise estimation of allelic copy numbers is not possible.
 
 BAD corresponds to the ratio of Major copy number to Minor copy number.
 
-BABACHI takes in a vcf-like .tsv file with heterozygous SNVs sorted by genome positions (ascending).
-The input file must contain the following first 7 columns:
-chromosome, position, ID, reference base, alternative base, reference read count, alternative read count
+BABACHI takes in a ```.bed``` file with heterozygous SNVs sorted by genome positions (ascending).
+The input file must contain the following first 8 columns:
+```chromosome, start, end, ID, reference base, alternative base, reference read count, alternative read count```.<br>
 All lines, starting with # are ignored.
 
-The output is a .bed file with BAD annotations.
+The output is a ```.bed``` file with BAD annotations. The file has f
 ## System Requirements
 ### Hardware requirements
 `BABACHI` package requires only a standard computer with enough RAM to support the in-memory operations.
@@ -20,7 +20,7 @@ The output is a .bed file with BAD annotations.
 #### OS Requirements
 The package can be installed on all major platforms (e.g. BSD, GNU/Linux, OS X, Windows) from Python Package Index (PyPI) and GitHub.
 The package has been tested on the following systems:
-+ Windows: Windows 10 
++ Windows: Windows 10, Windows 11
 + Linux: Ubuntu 18.04
 #### Python Dependencies
 `BABACHI` mainly depends on the following Python 3 packages:
@@ -50,7 +50,7 @@ The package should take less than 1 minute to install.
 
 ## Requirements
 ```
-python >= 3.6
+python == 3.6
 ```
 
 ## Usage
@@ -65,32 +65,43 @@ This will produce the following message:
 ```
 Usage:
     babachi (<file> | --test) [options]
-    babachi visualize <file> (-b <badmap>| --badmap <badmap>)
+    babachi visualize <file> (-b <badmap>| --badmap <badmap>) [options]
+    babachi filter <file> [options]
 
 Arguments:
-    <file>            Path to input file in tsv format with columns:
-                      chr pos ID ref_base alt_base ref_read_count alt_read_count
-                      Expected to be sorted be (chr, pos)
-    <badmap>          Path to badmap .bed format file
+    <file>            Path to input VCF file. Expected to be sorted by (chr, pos)
+    <path>            Path to file
     <int>             Non negative integer
     <float>           Non negative number
-    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
+    <states-string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3).
+                      Each state must be >= 1
+    <samples-string>  Comma-separated sample names or indices
+    <prior-string>    One of "uniform" or "geometric"
+    <file-or-link>    Path to existing file or link
 
 
 Required arguments:
-    --test                                  Run segmentation on test file
-    -b <badmap>, --badmap <badmap>          Input badmap file
+    -b <path>, --badmap <path>              Input badmap file
     -O <path>, --output <path>              Output directory or file path. [default: ./]
+    --test                                  Run segmentation on test file
 
 Optional arguments:
-    -h, --help                              Show help.
-    -q, --quiet                             Suppress log messages.
-    --force-sort                            Chromosomes will be sorted in numerical order
-
-    --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
+    -h, --help                              Show help
+    -v, --verbose                           Write debug messages
+    --sample-list <samples-string>          Comma-separated sample names or integer indices to use in input VCF
+    --snp-strategy <snp-strategy>           Strategy to take into account SNPs on the same position.
+                                            Either add read counts 'ADD' or treat as a separate events 'SEP'. [default: SEP]
+    -n, --no-filter                         Skip filtering of input file
+    -f, --force-sort                        Chromosomes will be sorted in numerical order
+    -j <int>, --jobs <int>                  Number of parallel jobs to use,
+                                            won't be more than # of chromosomes [default: 1]
+    --chrom-sizes <file-or-link>            File with chromosome sizes (can be link), default is hg38
+    -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
+    -p <string>, --prior <prior-string>     Prior to use. uniform or geometric [default: uniform]
+    -g <float>, --geometric-prior <float>   Coefficient for geometric prior [default: 0.98]
+    -s <string>, --states <states-string>   States string [default: 1,2,3,4,5,6]
     -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
-    --states <string>                       States string [default: 1,2,3,4,5,6]
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
     -R <int>, --min-seg-bp <int>            Only allow segments containing R or more base pairs [default: 1000]
     -P <int>, --post-segment-filter <int>   Remove segments with less than P unique SNPs (IDs/positions) from output [default: 0]
@@ -100,7 +111,9 @@ Optional arguments:
 
 Visualization:
     --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
-                                            Will create a directory in output path for the .svg visualizations.
+                                            Will create a directory in output path for the <ext> visualizations
+    -z, --zip                               Zip visualizations directory
+    -e <ext>, --ext <ext>                   Extension to save visualizations with [default: svg]
 
 ```
 
@@ -111,14 +124,14 @@ babachi --test
 ```
 The test run takes approximately 2 minutes on a standard computer.
 <br>
-The result is a file named `test.bed` that will be produced in the root directory of the project (if `-O` option is not used).
-The contents of the `test.bed` file should start as follows:
+The result is a file named `test.bed` that will be produced in the working directory (if `-O` option is not used).
+The contents of the `test.bed` file should have the following format:
 ```
 #chr	start	end	BAD	Q1.00	Q1.33	Q1.50	Q2.00	Q2.50	Q3.00	Q4.00	Q5.00	Q6.00	SNP_count	sum_cover
 chr1	1	125183196	2	-63.47825919524621	-24.598710473939718	-8.145646624117944	-2.000888343900442e-11	-30.773041699645546	-78.80480783186977	-189.88685134708248	-299.82657588596703	-401.6012195141575	1325	17280
 ```
 Each row represents a single segment with a constant estimated BAD. The columns are as follows:
-- #chr:  chromosome
+- \#chr:  chromosome
 - start: segment start position
 - end: segment end position
 - BAD: estimated BAD
@@ -126,5 +139,5 @@ Each row represents a single segment with a constant estimated BAD. The columns 
 - SNP_ID_count: number of unique SNPs of the segment
 - sum_cover: the total read coverage of all SNPs of the segment
 - Q<b>X</b>: the logarithmic likelihood of the segment to have BAD = <b>X</b> 
-<br>
+
 The BABACHI tool is maintained by Sergey Abramov and Alexandr Boytsov.

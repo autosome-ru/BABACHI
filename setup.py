@@ -16,11 +16,11 @@ setup(
     version=__version__,
     packages=find_packages('src'),
     include_package_data=True,
-    package_data={'babachi': ['tests/*.tsv']},
+    package_data={'babachi': ['tests/*.bed']},
     long_description=long_description,
     entry_points={
         'console_scripts': [
-            'babachi = babachi.BADEstimation:segmentation_start',
+            'babachi = babachi.bad_estimation:segmentation_start',
         ],
     },
     author="Sergey Abramov, Alexandr Boytsov",
@@ -28,16 +28,20 @@ setup(
     package_dir={'': 'src'},
     install_requires=[
         'docopt>=0.6.2',
-        'numpy>=1.18.0',
+        'numpy>=1.19.5',
         'schema>=0.7.2',
         'contextlib2>=0.5.5',
         'pandas>=1.0.4',
         'matplotlib>=3.2.1',
         'seaborn>=0.10.1',
-        'numba>=0.53.1'
+        'numba>=0.53.1',
+        'vcfpy>=0.13.4',
+        'scipy>=1.5.1',
+        'validators>=0.18.2'
     ],
     extras_require={
         'dev': ['wheel', 'twine', 'setuptools_scm'],
+        'vcf': ['pysam']
     },
     python_requires='>=3.6',
     url="https://github.com/autosome-ru/BABACHI",
