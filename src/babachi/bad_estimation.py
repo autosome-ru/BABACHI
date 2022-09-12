@@ -850,9 +850,8 @@ class InputParser:
         :return: pd.DataFrame
         """
         df = pd.read_table(file_path, header=None, comment='#')
-        names = df_header[:-1]
-        df = df[df.columns[:len(names)]]
-        df.columns = names
+        df = df[df.columns[:len(df_header)]]
+        df.columns = df_header
         if self.to_filter:
             df = df[df['chr'].isin(self.chromosomes_wrapper.chromosomes)]
             df = df[df[['ref_counts', 'alt_counts']].min(axis=1) >= self.allele_reads_tr]
