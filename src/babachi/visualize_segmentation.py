@@ -36,7 +36,7 @@ class BabachiVisualizer:
             os.mkdir(out_path)
 
         cosmics = self.read_cosmic(cosmic_file, cosmic_line=cosmic_line)
-        for chromosome in snps_collection.chromosome_order:
+        for chromosome in snps_collection.chromosomes_order:
             if verbose:
                 pass
                 # print('Visualizing {}'.format(chromosome))
