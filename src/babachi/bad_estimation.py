@@ -6,37 +6,38 @@ Usage:
 
 Arguments:
     <file>            Path to input VCF file. Expected to be sorted by (chr, pos)
-    <path>            Path to file
+
+    <path>            Path to the file
     <int>             Non negative integer
     <float>           Non negative number
     <states-string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3).
                       Each state must be >= 1
     <samples-string>  Comma-separated sample names or indices
-    <prior-string>    One of "uniform" or "geometric"
+    <prior-string>    Either "uniform" or "geometric"
     <file-or-link>    Path to existing file or link
 
 
-Required arguments:
-    -b <path>, --badmap <path>              Input badmap file
+Arguments:
+    -h, --help                              Show help
+
     -O <path>, --output <path>              Output directory or file path. [default: ./]
     --test                                  Run segmentation on test file
 
-Optional arguments:
-    -h, --help                              Show help
     -v, --verbose                           Write debug messages
-    --sample-list <samples-string>          Comma-separated sample names or integer indices to use in input VCF
-    --snp-strategy <snp-strategy>           Strategy to take into account SNPs on the same position.
+    --sample-list <samples-string>          Comma-separated sample names or integer indices to use from input VCF
+    --snp-strategy <snp-strategy>           Strategy for the SNPs on the same position (from different samples).
                                             Either add read counts 'ADD' or treat as a separate events 'SEP'. [default: SEP]
+
     -n, --no-filter                         Skip filtering of input file
-    -f, --force-sort                        Chromosomes will be sorted in numerical order
-    -j <int>, --jobs <int>                  Number of parallel jobs to use,
-                                            won't be more than # of chromosomes [default: 1]
-    --chrom-sizes <file-or-link>            File with chromosome sizes (can be link), default is hg38
+    -f, --force-sort                        Chromosomes in output file will be sorted in numerical order
+    -j <int>, --jobs <int>                  Number of jobs to use, parallel by chromosomes [default: 1]
+    --chrom-sizes <file-or-link>            File with chromosome sizes (can be a link), default is hg38
     -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
-    -p <string>, --prior <prior-string>     Prior to use. uniform or geometric [default: uniform]
+    -p <string>, --prior <prior-string>     Prior to use. Can be either uniform or geometric [default: uniform]
     -g <float>, --geometric-prior <float>   Coefficient for geometric prior [default: 0.98]
     -s <string>, --states <states-string>   States string [default: 1,2,3,4,5,6]
+
     -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
     -R <int>, --min-seg-bp <int>            Only allow segments containing R or more base pairs [default: 1000]
@@ -46,6 +47,7 @@ Optional arguments:
     -S <int>, --subchr-filter <int>         Exclude subchromosomes with less than C unique SNPs  [default: 3]
 
 Visualization:
+    -b <path>, --badmap <path>              BADmap file created with BABACHI
     --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
                                             Will create a directory in output path for the <ext> visualizations
     -z, --zip                               Zip visualizations directory
