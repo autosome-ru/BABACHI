@@ -1,26 +1,27 @@
 # BABACHI: Background Allelic Dosage Bayesian Checkpoint Identification
 [![DOI](https://zenodo.org/badge/255952669.svg)](https://zenodo.org/badge/latestdoi/255952669) <br>
-BABACHI is a tool for Background Allelic Dosage (BAD) genomic regions calling from
-non-phased heterozygous SNVs. It is aimed at estimation of BAD on low-coverage sequencing data, where
+BABACHI is a tool for estimation of relative Background Allelic Dosage (BAD) from
+non-phased heterozygous SNVs. It estimates BAD on enriched sequencing data, where
 the precise estimation of allelic copy numbers is not possible.
 
-BAD corresponds to the ratio of Major copy number to Minor copy number.
+BAD corresponds to the ratio of Major copy number to Minor copy number. [Details] (https://www.nature.com/articles/s41467-021-23007-0)
 
-BABACHI takes in a ```.bed``` file with heterozygous SNVs sorted by genome positions (ascending).
-The input file must contain the following first 8 columns:
-```chromosome, start, end, ID, reference base, alternative base, reference read count, alternative read count```.<br>
-All lines, starting with # are ignored.
+## Files format
+BABACHI accepts either a BED file with heterozygous SNVs or a standard VCF file sorted by genomic positions (ascending).
+The BED file should begin with the following 8 columns, other columns are ignored:
+```chromosome, start, end, ID, reference base, alternative base, reference read count, alternative read count, sample_id```.<br>
+Lines starting with # are ignored.
 
-The output is a ```.bed``` file with BAD annotations. The file has f
+The output is a BED file with BAD annotations. The file format is described in the [Demo](#demo) section
 ## System Requirements
 ### Hardware requirements
-`BABACHI` package requires only a standard computer with enough RAM to support the in-memory operations.
+`BABACHI` package requires only a standard computer with enough RAM to support in-memory operations.
 
 ### Software requirements
 #### OS Requirements
-The package can be installed on all major platforms (e.g. BSD, GNU/Linux, OS X, Windows) from Python Package Index (PyPI) and GitHub.
+The package can be installed on GNU/Linux and OS X platforms from Python Package Index (PyPI) and GitHub.
 The package has been tested on the following systems:
-+ Windows: Windows 10, Windows 11
++ MacOS Monterey v12.5
 + Linux: Ubuntu 18.04
 #### Python Dependencies
 `BABACHI` mainly depends on the following Python 3 packages:
@@ -44,13 +45,18 @@ pip3 install babachi
 git clone https://github.com/autosome-ru/BABACHI
 cd BABACHI
 python3 setup.py install
+
+```
+or
+```
+pip3 install 'babachi @ git+https://github.com/autosome-ru/BABACHI.git'
 ```
 - `sudo`, if required.
 The package should take less than 1 minute to install.
 
 ## Requirements
 ```
-python == 3.6
+python >= 3.6
 ```
 
 ## Usage
@@ -70,37 +76,38 @@ Usage:
 
 Arguments:
     <file>            Path to input VCF file. Expected to be sorted by (chr, pos)
-    <path>            Path to file
+
+    <path>            Path to the file
     <int>             Non negative integer
     <float>           Non negative number
     <states-string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3).
                       Each state must be >= 1
     <samples-string>  Comma-separated sample names or indices
-    <prior-string>    One of "uniform" or "geometric"
+    <prior-string>    Either "uniform" or "geometric"
     <file-or-link>    Path to existing file or link
 
 
-Required arguments:
-    -b <path>, --badmap <path>              Input badmap file
+Arguments:
+    -h, --help                              Show help
+
     -O <path>, --output <path>              Output directory or file path. [default: ./]
     --test                                  Run segmentation on test file
 
-Optional arguments:
-    -h, --help                              Show help
     -v, --verbose                           Write debug messages
-    --sample-list <samples-string>          Comma-separated sample names or integer indices to use in input VCF
-    --snp-strategy <snp-strategy>           Strategy to take into account SNPs on the same position.
+    --sample-list <samples-string>          Comma-separated sample names or integer indices to use from input VCF
+    --snp-strategy <snp-strategy>           Strategy for the SNPs on the same position (from different samples).
                                             Either add read counts 'ADD' or treat as a separate events 'SEP'. [default: SEP]
+
     -n, --no-filter                         Skip filtering of input file
-    -f, --force-sort                        Chromosomes will be sorted in numerical order
-    -j <int>, --jobs <int>                  Number of parallel jobs to use,
-                                            won't be more than # of chromosomes [default: 1]
-    --chrom-sizes <file-or-link>            File with chromosome sizes (can be link), default is hg38
+    -f, --force-sort                        Chromosomes in output file will be sorted in numerical order
+    -j <int>, --jobs <int>                  Number of jobs to use, parallel by chromosomes [default: 1]
+    --chrom-sizes <file-or-link>            File with chromosome sizes (can be a link), default is hg38
     -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
                                             alt_read_count >= x. [default: 5]
-    -p <string>, --prior <prior-string>     Prior to use. uniform or geometric [default: uniform]
+    -p <string>, --prior <prior-string>     Prior to use. Can be either uniform or geometric [default: uniform]
     -g <float>, --geometric-prior <float>   Coefficient for geometric prior [default: 0.98]
     -s <string>, --states <states-string>   States string [default: 1,2,3,4,5,6]
+
     -B <float>, --boundary-penalty <float>  Boundary penalty coefficient [default: 4]
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
     -R <int>, --min-seg-bp <int>            Only allow segments containing R or more base pairs [default: 1000]
@@ -110,11 +117,11 @@ Optional arguments:
     -S <int>, --subchr-filter <int>         Exclude subchromosomes with less than C unique SNPs  [default: 3]
 
 Visualization:
+    -b <path>, --badmap <path>              BADmap file created with BABACHI
     --visualize                             Perform visualization of SNP-wise AD and BAD for each chromosome.
                                             Will create a directory in output path for the <ext> visualizations
     -z, --zip                               Zip visualizations directory
     -e <ext>, --ext <ext>                   Extension to save visualizations with [default: svg]
-
 ```
 
 ## Demo
