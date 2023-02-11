@@ -750,11 +750,7 @@ class GenomeSegmentator:  # gs
                     self.write_BAD_to_file(res, outfile)
                     self.chr_segmentations[i] = None
             else:
-                try:
-                    ctx = mp.get_context("forkserver")
-                except ValueError as e:
-                    print('forkserver is not available for Windows')
-                    raise e
+                ctx = mp.get_context("forkserver")
                 with ctx.Pool(jobs) as p:
                     for i, res in zip(segmentations,
                                       p.map(self.start_chromosome, segmentations)):
