@@ -19,6 +19,7 @@ Arguments:
 
 Arguments:
     -h, --help                              Show help
+    --version                               Show version
 
     -O <path>, --output <path>              Output directory or file path. [default: ./]
     --test                                  Run segmentation on test file
@@ -73,7 +74,7 @@ from abc import ABC, abstractmethod
 from docopt import docopt
 from .visualize_segmentation import BabachiVisualizer
 from collections import namedtuple
-
+from .version import __version__
 
 df_header = ['chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts', 'sample_id']
 bedfile_line = namedtuple('BED_file_line', field_names=df_header)
@@ -1110,7 +1111,7 @@ def read_snps_file(file_path, chrom_sizes=None, snp_strategy='SEP', samples_list
 
 
 def segmentation_start():
-    args = docopt(__doc__)
+    args = docopt(__doc__, version=__version__)
     if args['--test']:
         args['<file>'] = os.path.join(os.path.dirname(__file__), 'tests', 'test.bed')
 
