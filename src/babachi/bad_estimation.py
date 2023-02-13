@@ -10,7 +10,7 @@ Arguments:
     <path>            Path to the file
     <int>             Non negative integer
     <float>           Non negative number
-    <states-string>   String of states separated with "," (to provide fraction use "/", e.g. 4/3).
+    <states-string>   Allowed states separated with "," (to provide fraction use "/", e.g. 4/3).
                       Each state must be >= 1
     <samples-string>  Comma-separated sample names or indices
     <prior-string>    Either "uniform" or "geometric"
@@ -27,9 +27,10 @@ Arguments:
     -v, --verbose                           Write debug messages
     --sample-list <samples-string>          Comma-separated sample names or integer indices to use from input VCF
     --snp-strategy <snp-strategy>           Strategy for the SNPs on the same position (from different samples).
-                                            Either add read counts 'ADD' or treat as a separate events 'SEP'. [default: SEP]
+                                            Either add read counts 'ADD' or treat as separate events 'SEP'. [default: SEP]
 
     -n, --no-filter                         Skip filtering of input file
+    --filter-no-rs                          Filter variants without assigned ID in VCF file.
     -f, --force-sort                        Chromosomes in output file will be sorted in numerical order
     -j <int>, --jobs <int>                  Number of jobs to use, parallel by chromosomes [default: 1]
     --chrom-sizes <file-or-link>            File with chromosome sizes (can be a link), default is hg38
@@ -775,12 +776,13 @@ class GenomeSegmentator:  # gs
 
 class InputParser:
     def __init__(self, allele_reads_tr=5, snp_strategy='SEP', force_sort=False, to_filter=True,
-                 chromosomes_wrapper=None):
+                 chromosomes_wrapper=None, filter_no_rs=False):
         self.allele_reads_tr = allele_reads_tr
         self.to_filter = to_filter
         self.force_sort = force_sort
         self.logger = root_logger
         self.snp_strategy = snp_strategy
+        self.filter_no_rs = filter_no_rs
         self.chromosomes_wrapper = init_wrapper(chromosomes_wrapper)
         if force_sort:
             self.chromosomes_order = self.chromosomes_wrapper.sorted_chromosomes
@@ -800,11 +802,7 @@ class InputParser:
                 return
             if record.ref not in nucleotides or record.alts[0] not in nucleotides:
                 return
-            if 'MAF' in record.info:
-                maf = record.info.get('MAF', None)
-            else:
-                maf = None
-            if (maf is not None and maf < 0.05) or record.id == '.':
+            if self.filter_no_rs and record.id == '.':
                 return
         result = []
         ref_read_sum = 0
@@ -1092,7 +1090,7 @@ def read_url_file(url):
 
 
 def read_snps_file(file_path, chrom_sizes=None, snp_strategy='SEP', samples_list=None,
-                   allele_reads_tr=5, force_sort=False, to_filter=False):
+                   allele_reads_tr=5, force_sort=False, to_filter=False, filter_no_rs=False):
     if chrom_sizes is not None:
         chrom_sizes_df = pd.read_table(chrom_sizes,
                                        header=None, names=['chromosome', 'length'])
@@ -1103,6 +1101,7 @@ def read_snps_file(file_path, chrom_sizes=None, snp_strategy='SEP', samples_list
         allele_reads_tr=allele_reads_tr,
         force_sort=force_sort,
         to_filter=to_filter,
+        filter_no_rs=filter_no_rs,
         snp_strategy=snp_strategy,
         chromosomes_wrapper=chromosomes_wrapper,
     )
@@ -1225,6 +1224,7 @@ def segmentation_start():
                                              allele_reads_tr=args['--allele-reads-tr'],
                                              force_sort=args['--force-sort'],
                                              to_filter=not args['--no-filter'] or args['filter'],
+                                             filter_no_rs=args['--filter-no-rs']
                                              )
     except Exception as e:
         raise ValueError("Can not read the input file", *e.args)

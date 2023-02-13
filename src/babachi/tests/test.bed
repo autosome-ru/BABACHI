@@ -1,4 +1,4 @@
-#chr	start	end	ID	ref	alt	ref_counts	alt_counts	start
+#chr	start	end	ID	ref	alt	ref_counts	alt_counts	sample_id
 chr1	1430378	1430379	rs143000156	G	A	6	8	1430378
 chr1	1659064	1659065	rs6604980	C	G	7	12	1659064
 chr1	1659219	1659220	rs9661500	A	G	6	8	1659219

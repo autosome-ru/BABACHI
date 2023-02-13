@@ -42,7 +42,7 @@ numba>=0.53.1
 ## Installation
 ### Install from PyPi
 ```
-pip3 install babachi 
+pip3 install babachi
 ```
 ### Install from Github
 ```
@@ -93,21 +93,23 @@ Arguments:
 
 Arguments:
     -h, --help                              Show help
+    --version                               Show version
 
     -O <path>, --output <path>              Output directory or file path. [default: ./]
     --test                                  Run segmentation on test file
 
     -v, --verbose                           Write debug messages
     --sample-list <samples-string>          Comma-separated sample names or integer indices to use from input VCF
-    --snp-strategy <snp-strategy>           Strategy for the SNPs on the same position (from different samples).
-                                            Either add read counts 'ADD' or treat as a separate events 'SEP'. [default: SEP]
+    --snp-strategy <snp-strategy>           Strategy for the SNPs at the same genomic position (from different samples).
+                                            Either add read counts 'ADD' or treat as separate events 'SEP'. [default: SEP]
 
     -n, --no-filter                         Skip filtering of input file
+    --filter-no-rs                          Filter variants without assigned ID in VCF file.
     -f, --force-sort                        Chromosomes in output file will be sorted in numerical order
     -j <int>, --jobs <int>                  Number of jobs to use, parallel by chromosomes [default: 1]
     --chrom-sizes <file-or-link>            File with chromosome sizes (can be a link), default is hg38
     -a <int>, --allele-reads-tr <int>       Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
-                                            alt_read_count >= x. [default: 5]
+                                            alt_read_count >= x. Required for correct estimations in underlying statistical model [default: 5]
     -p <string>, --prior <prior-string>     Prior to use. Can be either uniform or geometric [default: uniform]
     -g <float>, --geometric-prior <float>   Coefficient for geometric prior [default: 0.98]
     -s <string>, --states <states-string>   States string [default: 1,2,3,4,5,6]
@@ -116,8 +118,8 @@ Arguments:
     -Z <int>, --min-seg-snps <int>          Only allow segments containing Z or more unique SNPs (IDs/positions) [default: 3]
     -R <int>, --min-seg-bp <int>            Only allow segments containing R or more base pairs [default: 1000]
     -P <int>, --post-segment-filter <int>   Remove segments with less than P unique SNPs (IDs/positions) from output [default: 0]
-    -A <int>, --atomic-region-size <int>    Atomic region size in SNPs [default: 600]
-    -C <int>, --chr-min-snps <int>          Minimum number of SNPs on a chromosome to start segmentation [default: 100]
+    -A <int>, --atomic-region-size <int>    Atomic region size in # of SNPs [default: 600]
+    -C <int>, --chr-min-snps <int>          Minimum number of SNPs at a chromosome to start segmentation [default: 100]
     -S <int>, --subchr-filter <int>         Exclude subchromosomes with less than C unique SNPs  [default: 3]
 
 Visualization:
