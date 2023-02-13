@@ -820,7 +820,7 @@ class InputParser:
             if self.snp_strategy == 'ADD':
                 ref_read_sum += sample_ref_read_count
                 alt_read_sum += sample_alt_read_count
-                names.append(sample)
+                names.append(sample.name)
             elif self.snp_strategy == 'SEP':
                 result.append(
                     (sample_ref_read_count, sample_alt_read_count, sample.name)
