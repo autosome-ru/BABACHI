@@ -77,6 +77,7 @@ from .visualize_segmentation import BabachiVisualizer
 from collections import namedtuple
 from .version import __version__
 
+
 df_header = ['chr', 'start', 'end', 'ID', 'ref', 'alt', 'ref_counts', 'alt_counts', 'sample_id']
 bedfile_line = namedtuple('BED_file_line', field_names=df_header)
 
@@ -85,8 +86,8 @@ root_logger = logging.getLogger(__name__)
 
 # TODO Use click instead of docopt
 class BADSegmentsContainer:
-    allowed_fields = ['boundaries_positions', 'BAD_estimations', 'likelihoods', 'snps_counts', 'covers',
-                      'snp_id_counts']
+    allowed_fields = ['boundaries_positions', 'BAD_estimations', 'likelihoods',
+        'snps_counts', 'covers', 'snp_id_counts']
 
     def __init__(self, **kwargs):
         self.BAD_estimations = []  # estimated BADs for split segments
@@ -113,7 +114,7 @@ class BADSegmentsContainer:
             setattr(self, arg, getattr(self, arg) + getattr(other, arg))
         return self
 
-    def get_BAD_segments(self, chromosome_segmentation):
+    def get_BAD_segments(self, chromosome_segmentation: 'ChromosomeSegmentation'):
         current_position = None
         if chromosome_segmentation.total_snps_count >= chromosome_segmentation.gs.snp_per_chr_tr:
             for counter, boundary in enumerate(self.boundaries_positions, -1):
@@ -211,15 +212,17 @@ class Segmentation(ABC):
             current_multiplier *= int(N - k)
             denominator_multiplier *= k + 1
 
-        return -result
+        return -result if result != 0 else np.finfo(float).eps
 
     def log_likelihood(self, N, X, BAD):
         """
         allele_reads_tr <= X <= N/2
         """
         p = 1.0 / (1.0 + BAD)
-        log_norm = np.log1p(self.get_norm(p, N, self.sub_chromosome.gs.allele_reads_tr) +
-                            self.get_norm(1 - p, N, self.sub_chromosome.gs.allele_reads_tr))
+        log_norm = np.log1p(
+            self.get_norm(p, N, self.sub_chromosome.gs.allele_reads_tr) +
+            self.get_norm(1 - p, N, self.sub_chromosome.gs.allele_reads_tr)
+        )
         if (self.sub_chromosome.gs.individual_likelihood_mode in (
                 'corrected',
                 'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
