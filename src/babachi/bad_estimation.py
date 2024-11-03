@@ -226,7 +226,6 @@ class Segmentation(ABC):
         if (self.sub_chromosome.gs.individual_likelihood_mode in (
                 'corrected',
                 'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
-            print(X, N, p, log_norm)
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm
         elif self.sub_chromosome.gs.individual_likelihood_mode == 'corrected':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm \
