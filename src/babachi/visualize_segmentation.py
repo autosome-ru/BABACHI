@@ -6,7 +6,9 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
 from zipfile import ZipFile
-from .helpers import init_wrapper, GenomeSNPsHandler
+from babachi.chrom_wrapper import init_wrapper
+from babachi.helpers import init_wrapper
+from babachi.models import GenomeSNPsHandler
 
 
 class BabachiVisualizer:

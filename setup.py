@@ -24,11 +24,11 @@ setup(
         ],
     },
     author="Sergey Abramov, Alexandr Boytsov",
-    author_email='aswq22013@gmail.com',
+    author_email='sabramov@altius.org',
     package_dir={'': 'src'},
     install_requires=[
         'docopt>=0.6.2',
-        'numpy>=1.19.5',
+        'numpy>=1.19.5,<2.0',
         'schema>=0.7.2',
         'contextlib2>=0.5.5',
         'pandas>=1.0.4',

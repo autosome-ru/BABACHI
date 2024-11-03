@@ -1,0 +1,135 @@
+from collections import namedtuple
+from babachi.helpers import df_header, pack
+from babachi.chrom_wrapper import ChromosomesWrapper
+import math
+import pandas as pd
+import numpy as np
+from typing import List
+
+
+class BADSegmentsContainer:
+    allowed_fields = ['boundaries_positions', 'BAD_estimations', 'likelihoods',
+        'snps_counts', 'covers', 'snp_id_counts']
+
+    def __init__(self, **kwargs):
+        self.BAD_estimations = []  # estimated BADs for split segments
+        self.likelihoods = []  # likelihoods of split segments for each BAD
+        self.snps_counts = []  # number of snps in segments
+        self.snp_id_counts = []  # numer of unique snp positions in segments
+        self.covers = []  # sums of covers for each segment
+        self.boundaries_positions = []  # boundary positions between snps at x1 and x2:
+        # (x1+x2)/2 for x2-x1<=CRITICAL_GAP, (x1, x2) else
+        for arg in self.allowed_fields:
+            if arg in kwargs:
+                assert isinstance(kwargs[arg], list)
+                setattr(self, arg, kwargs[arg])
+
+    def __add__(self, other):
+        if not isinstance(other, BADSegmentsContainer):
+            raise NotImplementedError
+        return BADSegmentsContainer(**{arg: getattr(self, arg) + getattr(other, arg) for arg in self.allowed_fields})
+
+    def __iadd__(self, other):
+        if not isinstance(other, BADSegmentsContainer):
+            raise NotImplementedError
+        for arg in self.allowed_fields:
+            setattr(self, arg, getattr(self, arg) + getattr(other, arg))
+        return self
+
+    def get_BAD_segments(self, chromosome_segmentation):
+        current_position = None
+        if chromosome_segmentation.total_snps_count >= chromosome_segmentation.gs.snp_per_chr_tr:
+            for counter, boundary in enumerate(self.boundaries_positions, -1):
+                if current_position is None:
+                    if isinstance(boundary, tuple):
+                        current_position = boundary[1]
+                    else:
+                        current_position = 0
+                elif isinstance(boundary, tuple):
+                    yield BADSegment(
+                        chromosome_segmentation.chromosome,
+                        current_position,
+                        boundary[0] + 1,
+                        self.BAD_estimations[counter],
+                        self.likelihoods[counter],
+                        self.snps_counts[counter],
+                        self.covers[counter],
+                        self.snp_id_counts[counter],
+                    )
+                    current_position = boundary[0] + 1
+                    yield BADSegment(
+                        chromosome_segmentation.chromosome,
+                        current_position,
+                        boundary[1],
+                        0,
+                        [0] * len(chromosome_segmentation.gs.BAD_list),
+                        0,
+                        0,
+                        0,
+                    )
+                    current_position = boundary[1]
+                else:
+                    yield BADSegment(
+                        chromosome_segmentation.chromosome,
+                        current_position,
+                        math.floor(boundary) + 1,
+                        self.BAD_estimations[counter],
+                        self.likelihoods[counter],
+                        self.snps_counts[counter],
+                        self.covers[counter],
+                        self.snp_id_counts[counter],
+                    )
+                    current_position = math.floor(boundary) + 1
+
+
+class BADSegment:
+    def __init__(self, chrom, start, end, BAD, likelihoods, snps_count, total_cover, snp_id_count):
+        self.chr = chrom
+        self.start = start
+        self.end = end
+        self.BAD = BAD
+        self.likelihoods = likelihoods
+        self.snps_count = snps_count
+        self.total_cover = total_cover
+        self.snp_id_count = snp_id_count
+
+    def __repr__(self):
+        return pack([self.chr, self.start, self.end, self.BAD, self.snps_count, self.snp_id_count, self.total_cover,
+                     *self.likelihoods])
+
+
+def filter_segments(segments: List[BADSegment], post_seg_filter: int = None):
+    for segment in segments:
+        if post_seg_filter is None or segment.snp_id_count >= post_seg_filter:
+            if segment.BAD != 0:
+                yield segment
+
+
+## SNPs handlers
+class GenomeSNPsHandler:
+    def __init__(self, data: pd.DataFrame, chrom_wrapper: ChromosomesWrapper):
+        self.data = {}
+        gb = data.groupby(['chr'])
+        self.chromosomes_order = data['chr'].unique()
+        for chromosome, group_df in [(group, gb.get_group(group)) for group in gb.groups]:
+            if chromosome in chrom_wrapper.chromosomes:
+                self.data[chromosome] = ChromosomeSNPsHandler.from_df(chromosome, group_df)
+
+
+class ChromosomeSNPsHandler:
+    def __init__(self, chromosome, data: np.ndarray):
+        if not type(data) is np.ndarray:
+            raise ValueError('Not a numpy array provided.')
+        if data.shape[0] != 3:
+            raise ValueError(f'Wrong data shape {data.shape}')
+        self.chromosome = chromosome
+        self.data = data
+
+    @classmethod
+    def from_df(cls, chromosome, counts_df):
+        numpy_df = counts_df[['start', 'ref_counts', 'alt_counts']].transpose().to_numpy()
+        return cls(chromosome, numpy_df)
+    
+
+bedfile_line = namedtuple('BED_file_line', field_names=df_header) # Move to dataclasses
+
