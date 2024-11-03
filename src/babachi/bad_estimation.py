@@ -547,7 +547,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
 
 
 class ChromosomeSegmentation:  # chromosome
-    def __init__(self, genome_segmentator, chromosome, length=0):
+    def __init__(self, genome_segmentator: 'GenomeSegmentator', chromosome, length=0):
         self.gs = genome_segmentator
 
         self.chromosome = chromosome  # name
@@ -569,7 +569,7 @@ class ChromosomeSegmentation:  # chromosome
             snps = np.stack(data[1:], axis=-1)
         except ValueError:
             positions, snps = [], []
-        return np.array(snps, dtype=np.int_), np.array(positions, dtype=np.int_)
+        return np.array(snps, dtype=np.float64), np.array(positions, dtype=np.int_)
 
     def adjust_critical_gap(self):
         condition = True
@@ -663,15 +663,20 @@ class ChromosomeSegmentation:  # chromosome
 
 
 class GenomeSegmentator:  # gs
-    def __init__(self, snps_collection, out, chromosomes_order, segmentation_mode='corrected', scoring_mode='marginal',
-                 states=None,
-                 b_penalty=4, prior=None, allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
-                 post_seg_filter=0,
-                 jobs=1,
-                 atomic_region_size=600, chr_filter=100, subchr_filter=3, logger_level=logging.INFO,
-                 chromosomes_wrapper=None):
+    def __init__( # TODO move to config
+        self, snps_collection, out, chromosomes_order,
+        segmentation_mode='corrected', scoring_mode='marginal',
+        states=None, b_penalty=4, prior=None,
+        allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
+        post_seg_filter=0,
+        jobs=1,
+        atomic_region_size=600, chr_filter=100, subchr_filter=3,
+        logger=root_logger,
+        logger_level=logging.INFO,
+        chromosomes_wrapper=None
+    ):
 
-        self.logger = root_logger
+        self.logger = logger
         self.logger_level = logger_level
         self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
         self.scoring_mode = scoring_mode  # marginal or maximum
@@ -737,9 +742,7 @@ class GenomeSegmentator:  # gs
     def estimate_BAD(self):
         with open(self.out, 'w') as outfile:
             outfile.write(
-                pack(['#chr', 'start', 'end', 'BAD', 'SNP_count', 'SNP_ID_count', 'sum_cover'] + ['Q{:.2f}'.format(BAD)
-                                                                                                  for BAD in
-                                                                                                  self.BAD_list]))
+                pack(['#chr', 'start', 'end', 'BAD', 'SNP_count', 'SNP_ID_count', 'sum_cover'] + ['Q{:.2f}'.format(BAD) for BAD in self.BAD_list]))
             jobs = min(self.jobs,
                        len(self.chr_segmentations),
                        max(1, mp.cpu_count()))
