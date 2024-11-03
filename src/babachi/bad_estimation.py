@@ -196,7 +196,7 @@ class Segmentation(ABC):
         self.last_snp_number = None
         self.candidate_numbers = None
         self.candidates_count = None
-        self.sub_chromosome = None
+        self.sub_chromosome: 'SubChromosomeSegmentation' = None
         self.score = None  # score[i] = best log-likelihood among all segmentations of snps[0,i]
         self.has_boundary_cache = None  # bool boundaries, len=total_snps_count * (total_snps_count + 1).
         self.best_boundaries_count = None  # best_boundaries_count[i] = number of boundaries
@@ -226,6 +226,7 @@ class Segmentation(ABC):
         if (self.sub_chromosome.gs.individual_likelihood_mode in (
                 'corrected',
                 'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
+            print(X, N, p, log_norm)
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm
         elif self.sub_chromosome.gs.individual_likelihood_mode == 'corrected':
             return X * np.log(p) + (N - X) * np.log(1 - p) + np.log(self.sub_chromosome.gs.prior[BAD]) - log_norm \
@@ -695,12 +696,12 @@ class GenomeSegmentator:  # gs
         else:
             self.BAD_list = sorted(states)
         if prior is None:
-            self.prior = dict(zip(self.BAD_list, [1] * len(self.BAD_list)))
+            prior = dict(zip(self.BAD_list, [1] * len(self.BAD_list)))
         else:
             if len(prior) != len(self.BAD_list):
                 raise AssertionError('Length of prior = {} is not equal to number of states = {}'.format(
                     len(prior), len(self.BAD_list)))
-            self.prior = prior
+        self.prior = prior
 
         self.snps_collection = snps_collection  # input snp collection
         self.out = out  # output file in .bed format
@@ -719,8 +720,9 @@ class GenomeSegmentator:  # gs
         self.chromosomes_wrapper = init_wrapper(chromosomes_wrapper)
 
         for chromosome in self.chromosomes_order:
-            chr_segmentation = ChromosomeSegmentation(self, chromosome,
-                                                      self.chromosomes_wrapper.chromosomes[chromosome] - 1)
+            chr_segmentation = ChromosomeSegmentation(
+                self, chromosome, self.chromosomes_wrapper.chromosomes[chromosome] - 1
+            )
             self.logger.debug('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
             self.logger.debug('{} length: {}'.format(chromosome, self.chromosomes_wrapper.chromosomes[chromosome]))
             self.chr_segmentations.append(chr_segmentation)
