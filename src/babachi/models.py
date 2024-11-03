@@ -1,6 +1,6 @@
 from collections import namedtuple
 from babachi.helpers import df_header, pack
-from babachi.chrom_wrapper import ChromosomesWrapper
+from babachi.chrom_wrapper import ChromosomesWrapper, init_wrapper
 import math
 import pandas as pd
 import numpy as np
@@ -107,7 +107,8 @@ def filter_segments(segments: List[BADSegment], post_seg_filter: int = None):
 
 ## SNPs handlers
 class GenomeSNPsHandler:
-    def __init__(self, data: pd.DataFrame, chrom_wrapper: ChromosomesWrapper):
+    def __init__(self, data: pd.DataFrame, chrom_wrapper: ChromosomesWrapper=None):
+        chrom_wrapper = init_wrapper(chrom_wrapper)
         self.data = {}
         gb = data.groupby(['chr'])
         self.chromosomes_order = data['chr'].unique()
