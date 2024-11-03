@@ -1,7 +1,7 @@
 from babachi.helpers import pack
 from abc import ABC, abstractmethod
 import numpy as np
-from babachi.models import BADSegmentsContainer, filter_segments
+from babachi.models import BADSegmentsContainer, filter_segments, BADSegment
 from babachi.chrom_wrapper import init_wrapper
 import logging
 from babachi.logging import root_logger, set_logger_config
@@ -9,7 +9,7 @@ import multiprocessing as mp
 from scipy.special import logsumexp
 from babachi.stats import fast_find_optimal_borders
 import time
-
+from typing import List
 
 class Segmentation(ABC):
     def __init__(self):
@@ -585,7 +585,7 @@ class GenomeSegmentator:  # gs
     def start_chromosome(self, segmentation: ChromosomeSegmentation):
         return segmentation.estimate_chr()
     
-    def estimate_BAD(self):
+    def estimate_BAD(self) -> List[BADSegment]:
         results = []
         jobs = min(self.jobs, len(self.chr_segmentations), max(1, mp.cpu_count()))
 
