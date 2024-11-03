@@ -212,13 +212,14 @@ class Segmentation(ABC):
             current_multiplier *= int(N - k)
             denominator_multiplier *= k + 1
 
-        return -result if result != 0 else np.finfo(float).eps
+        return -result
 
     def log_likelihood(self, N, X, BAD):
         """
         allele_reads_tr <= X <= N/2
         """
         p = 1.0 / (1.0 + BAD)
+        #FIXME
         log_norm = np.log1p(
             self.get_norm(p, N, self.sub_chromosome.gs.allele_reads_tr) +
             self.get_norm(1 - p, N, self.sub_chromosome.gs.allele_reads_tr)
@@ -436,7 +437,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
     def construct_initial_likelihood_matrices(self):
         vector_likelihood = np.vectorize(self.log_likelihood, excluded=['BAD'])
         S = np.zeros((len(self.gs.BAD_list), self.total_snps_count), dtype=self.dtype)
-        X = self.allele_read_counts_array.min(axis=1)
+        X = self.allele_read_counts_array[:, 0] # TMPFIX
         N = self.allele_read_counts_array.sum(axis=1)
         for i in range(len(self.gs.BAD_list)):
             S[i, :] = vector_likelihood(N, X, BAD=self.gs.BAD_list[i])
@@ -768,7 +769,7 @@ class GenomeSegmentator:  # gs
                         self.write_BAD_to_file(res, outfile)
                         self.chr_segmentations[i] = None
 
-    def write_BAD_to_file(self, chromosome_segmentation, outfile):
+    def write_BAD_to_file(self, chromosome_segmentation: ChromosomeSegmentation, outfile):
         segments_generator = chromosome_segmentation.segments_container.get_BAD_segments(chromosome_segmentation)
         for segment in self.filter_segments(segments_generator):
             outfile.write(str(segment))
