@@ -313,7 +313,7 @@ class Segmentation(ABC):
 
 
 class AtomicRegionSegmentation(Segmentation):
-    def __init__(self, sub_chromosome, start, end):
+    def __init__(self, sub_chromosome: 'SubChromosomeSegmentation', start, end):
         super().__init__()
         self.sub_chromosome = sub_chromosome
         self.start_snp_index = start
@@ -327,11 +327,13 @@ class AtomicRegionSegmentation(Segmentation):
             self.first_snp_number = 0
         else:
             self.first_snp_number = sub_chromosome.candidate_numbers[start - 1] + 1
-        self.snps_positions = sub_chromosome.snps_positions[self.first_snp_number: self.last_snp_number + 1]
+        self.snps_positions = sub_chromosome.snps_positions[
+            self.first_snp_number: self.last_snp_number + 1
+        ]
         self.total_cover = sub_chromosome.allele_read_counts_array[
-                           self.first_snp_number:
-                           self.last_snp_number + 1
-                           ].sum()
+            self.first_snp_number:
+            self.last_snp_number + 1
+        ].sum()
         self.candidate_numbers = sub_chromosome.candidate_numbers[start:end]
         self.candidates_count = end - start
 
@@ -387,7 +389,7 @@ class AtomicRegionSegmentation(Segmentation):
 
 
 class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
-    def __init__(self, genome_segmentator, chromosome_segmentation, allele_read_counts_array, snps_positions, part):
+    def __init__(self, genome_segmentator: 'GenomeSegmentator', chromosome_segmentation, allele_read_counts_array, snps_positions, part):
         super().__init__()
 
         self.gs = genome_segmentator
