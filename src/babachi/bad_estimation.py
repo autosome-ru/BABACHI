@@ -534,7 +534,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         for first, last in atomic_regions_limits:
             counter += 1
             self.gs.logger.debug(
-                'Making {} out of {} atomic region{} from SNP {} to {} for {} (subchromosome {} of {}).'.format(
+                'Processing {} out of {} atomic region{} from SNP {} to {} for {} (subchromosome {} of {}).'.format(
                     counter, len(atomic_regions_limits), 's' * bool((len(atomic_regions_limits) - 1)),
                     first, last, self.chromosome_segmentation.chromosome,
                     self.index_in_chromosome,
