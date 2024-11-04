@@ -285,7 +285,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.end_snp_index = self.candidates_count - 1
 
     def construct_initial_likelihood_matrices(self):
-        vector_likelihood = np.vectorize(self.log_likelihood, excluded=['BAD'])
+        #vector_likelihood = np.vectorize(, excluded=['BAD'])
         S = np.zeros((len(self.gs.BAD_list), self.total_snps_count), dtype=self.dtype)
         if self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
             X = self.allele_read_counts_array[:, 0]
@@ -295,7 +295,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         N = self.allele_read_counts_array.sum(axis=1)
         trim_tr = self.sub_chromosome.normalization_thresholds
         for i in range(len(self.gs.BAD_list)):
-            S[i, :] = vector_likelihood(N, X, BAD=self.gs.BAD_list[i], trim_tr=trim_tr)
+            S[i, :] = self.log_likelihood(N, X, BAD=self.gs.BAD_list[i], trim_tr=trim_tr)
         self.P_initial = S
 
     def find_optimal_boundaries(self):
