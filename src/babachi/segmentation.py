@@ -38,7 +38,7 @@ class Segmentation(ABC):
         # before ith snp in best segmentation
 
     @staticmethod
-    def binomial_norm(p, N, trim_cover):
+    def get_norm(p, N, trim_cover):
         result = 0
         current_multiplier = 1
         denominator_multiplier = 1
@@ -49,8 +49,6 @@ class Segmentation(ABC):
 
         return -result
 
-    def get_norm(self, p, N, trim_cover):
-        return np.log1p(self.binomial_norm(p, N, trim_cover) + self.binomial_norm(1 - p, N, trim_cover))
 
     def log_likelihood(self, N, X, BAD):
         """
@@ -58,7 +56,10 @@ class Segmentation(ABC):
         """
         p = 1.0 / (1.0 + BAD)
         #FIXME
-        log_norm = self.get_norm(p, N, self.sub_chromosome.chromosome_segmentation.normalization_tr)
+        log_norm = np.log1p(
+            self.get_norm(p, N, self.sub_chromosome.gs.allele_reads_tr) +
+            self.get_norm(1 - p, N, self.sub_chromosome.gs.allele_reads_tr)
+        )
         if (self.sub_chromosome.gs.individual_likelihood_mode in (
                 'corrected',
                 'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
@@ -225,7 +226,7 @@ class AtomicRegionSegmentation(Segmentation):
 
 
 class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
-    def __init__(self, genome_segmentator: 'GenomeSegmentator', chromosome_segmentation: 'ChromosomeSegmentation', allele_read_counts_array, snps_positions, part):
+    def __init__(self, genome_segmentator: 'GenomeSegmentator', chromosome_segmentation, allele_read_counts_array, snps_positions, part):
         super().__init__()
 
         self.gs = genome_segmentator
@@ -401,7 +402,6 @@ class ChromosomeSegmentation:  # chromosome
         self.length = length  # length, bp
 
         self.allele_read_counts_array, self.snps_positions = self.unpack_snp_collection()
-        self.normalization_tr = self.gs.normalization_tr[self.chromosome]
         self.total_snps_count = len(self.allele_read_counts_array)
         self.segments_container = BADSegmentsContainer()
         if self.total_snps_count == 0:
@@ -515,9 +515,7 @@ class GenomeSegmentator:  # gs
         self, snps_collection, chromosomes_order,
         segmentation_mode='corrected', scoring_mode='marginal',
         states=None, b_penalty=4, prior=None,
-        normalization_tr=5, 
-        min_seg_snps=3, 
-        min_seg_bp=0,
+        allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
         post_seg_filter=0,
         jobs=1,
         atomic_region_size=600, chr_filter=100, subchr_filter=3,
@@ -531,6 +529,7 @@ class GenomeSegmentator:  # gs
         self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
         self.scoring_mode = scoring_mode  # marginal or maximum
         self.b_penalty = b_penalty  # boundary penalty coefficient k ('CAIC' * k)
+        self.allele_reads_tr = allele_reads_tr  # "minimal read count on each allele" snp filter
         self.post_seg_filter = post_seg_filter  # min number of SNPs in the segment to be included in the output
         self.jobs = jobs
 
@@ -545,10 +544,6 @@ class GenomeSegmentator:  # gs
                 raise AssertionError('Length of prior = {} is not equal to number of states = {}'.format(
                     len(prior), len(self.BAD_list)))
         self.prior = prior
-        self.chromosomes_order = chromosomes_order  # ['chr1', 'chr2', ...]
-        if isinstance(normalization_tr, int):
-            normalization_tr = {chrom: normalization_tr for chrom in self.chromosomes_order}
-        self.normalization_tr = normalization_tr  # "minimal read count on each allele" snp filter
 
         self.snps_collection = snps_collection  # input snp collection
 
@@ -559,7 +554,7 @@ class GenomeSegmentator:  # gs
         self.fast = True  # use numba to optimize execution speed
         self.min_seg_snps = min_seg_snps  # minimal BAD segment length in SNPs
         self.min_seg_bp = min_seg_bp  # minimal BAD segment length in bp
- 
+        self.chromosomes_order = chromosomes_order  # ['chr1', 'chr2', ...]
 
         self.chr_segmentations = []  # list of ChromosomeSegmentation instances
 
