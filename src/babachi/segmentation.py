@@ -47,7 +47,7 @@ class Segmentation(ABC):
         denominator_multiplier = 1
         for k in range(trim_covers[0]):
             result += current_multiplier * np.power(p, N - k) * np.power(1 - p, k) / denominator_multiplier
-            current_multiplier *= int(N - k)
+            current_multiplier *= N - k
             denominator_multiplier *= k + 1
 
         return -result
@@ -56,7 +56,7 @@ class Segmentation(ABC):
         if self.sub_chromosome.gs.individual_likelihood_mode != 'binomial':
             return np.log1p(self.binomial_norm(p, N, trim_cover) + self.binomial_norm(1 - p, N, trim_cover))
         else:
-            return st.nbinom.logcdf(trim_cover - 1, X, 1 - p)
+            return 0
 
     def log_likelihood(self, N, X, BAD, trim_tr):
         """
