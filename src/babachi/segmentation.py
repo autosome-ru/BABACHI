@@ -469,8 +469,13 @@ class ChromosomeSegmentation:  # chromosome
                     snp_id_counts=[unique_positions]
                 )
             else:
-                sub_chromosome = SubChromosomeSegmentation(self.gs, self, self.allele_read_counts_array[start: end],
-                                                           self.snps_positions[start: end], part)
+                sub_chromosome = SubChromosomeSegmentation(
+                    self.gs,
+                    self, 
+                    self.allele_read_counts_array[start: end],
+                    self.snps_positions[start: end],
+                    part
+                )
                 start_t = time.perf_counter()
                 sub_chromosome.estimate_sub_chr()
                 self.gs.logger.debug('Subchromosome time: {}, subchromosome SNPs: {}'.format(
