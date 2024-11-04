@@ -20,8 +20,9 @@ class ChromosomesWrapper:
             self.sorted_chromosomes = chromosomes_df['chromosome'].tolist()
 
 
-def init_wrapper(wrapper, data=None):
-    if wrapper is None:
+
+def init_wrapper(wrapper, data=None) -> ChromosomesWrapper:
+    if wrapper is None or not isinstance(wrapper, ChromosomesWrapper):
         return ChromosomesWrapper(data)
     else:
         return wrapper

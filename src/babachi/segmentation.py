@@ -395,13 +395,14 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
 
 
 class ChromosomeSegmentation:  # chromosome
-    def __init__(self, genome_segmentator: 'GenomeSegmentator', chromosome, length=0):
+    def __init__(self, genome_segmentator: 'GenomeSegmentator', chromosome, length):
         self.gs = genome_segmentator
 
         self.chromosome = chromosome  # name
         self.length = length  # length, bp
 
-        self.allele_read_counts_array, self.snps_positions = self.unpack_snp_collection()
+        self.allele_read_counts_array = self.gs.snps_collection[self.chromosome][:, 1:]
+        self.snps_positions = self.gs.snps_collection[self.chromosome][:, 0]
         self.total_snps_count = len(self.allele_read_counts_array)
         self.segments_container = BADSegmentsContainer()
         if self.total_snps_count == 0:
@@ -410,14 +411,6 @@ class ChromosomeSegmentation:  # chromosome
         self.critical_gap_factor = 1 - 10 ** (- 1 / np.sqrt(self.total_snps_count))
         self.effective_length = self.snps_positions[-1] - self.snps_positions[0]
 
-    def unpack_snp_collection(self):
-        try:
-            data = self.gs.snps_collection[self.chromosome].data
-            positions = data[0]
-            snps = np.stack(data[1:], axis=-1)
-        except ValueError:
-            positions, snps = [], []
-        return np.array(snps, dtype=np.float64), np.array(positions, dtype=np.int_)
 
     def adjust_critical_gap(self):
         condition = True
@@ -450,7 +443,7 @@ class ChromosomeSegmentation:  # chromosome
     def estimate_chr(self) -> BADSegmentsContainer:
         self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
-            return self
+            return self.segments_container
 
         start_t = time.perf_counter()
         self.adjust_critical_gap()
@@ -512,8 +505,11 @@ class ChromosomeSegmentation:  # chromosome
 
 class GenomeSegmentator:  # gs
     def __init__( # TODO move to config
-        self, snps_collection, chromosomes_order,
-        segmentation_mode='corrected', scoring_mode='marginal',
+        self, 
+        snps_collection: dict,
+        chrom_sizes: dict,
+        segmentation_mode='corrected', 
+        scoring_mode='marginal',
         states=None, b_penalty=4, prior=None,
         allele_reads_tr=5, min_seg_snps=3, min_seg_bp=0,
         post_seg_filter=0,
@@ -521,9 +517,7 @@ class GenomeSegmentator:  # gs
         atomic_region_size=600, chr_filter=100, subchr_filter=3,
         logger=root_logger,
         logger_level=logging.INFO,
-        chromosomes_wrapper=None
     ):
-
         self.logger = logger
         self.logger_level = logger_level
         self.individual_likelihood_mode = segmentation_mode  # 'corrected', 'binomial' or 'bayesian'
@@ -554,18 +548,14 @@ class GenomeSegmentator:  # gs
         self.fast = True  # use numba to optimize execution speed
         self.min_seg_snps = min_seg_snps  # minimal BAD segment length in SNPs
         self.min_seg_bp = min_seg_bp  # minimal BAD segment length in bp
-        self.chromosomes_order = chromosomes_order  # ['chr1', 'chr2', ...]
+        self.chrom_sizes = chrom_sizes  # ['chr1', 'chr2', ...]
 
         self.chr_segmentations = []  # list of ChromosomeSegmentation instances
 
-        self.chromosomes_wrapper = init_wrapper(chromosomes_wrapper)
-
-        for chromosome in self.chromosomes_order:
-            chr_segmentation = ChromosomeSegmentation(
-                self, chromosome, self.chromosomes_wrapper.chromosomes[chromosome] - 1
-            )
+        for chromosome, length in self.chrom_sizes.items():
+            chr_segmentation = ChromosomeSegmentation(self, chromosome, length - 1) # WTF, why -1?
             self.logger.debug('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
-            self.logger.debug('{} length: {}'.format(chromosome, self.chromosomes_wrapper.chromosomes[chromosome]))
+            self.logger.debug('{} length: {}'.format(chromosome, length))
             self.chr_segmentations.append(chr_segmentation)
         else:
             self.logger.debug('-----------------------------------------')

@@ -200,18 +200,21 @@ def segmentation_start():
         root_logger.info('Succesfully converted to BED')
         exit(0)
         return
-    snps_collection = GenomeSNPsHandler(snps, chrom_wrapper)
+    chrom_order = snps['chr'].unique()
+    snps_collection = {chrom: df_slice[['start', 'ref_counts', 'alt_counts']].to_numpy() for chrom, df_slice in snps.groupby('chr')}
+    chrom_sizes = {x: chrom_wrapper.chromosomes[x] for x in chrom_order}
+
     if not args['visualize']:
         badmap_file_path = make_file_path_from_dir(args['--output'], file_name)
         mode = 'corrected'
         t = time.perf_counter()
         genome_segmentator = GenomeSegmentator(
-            snps_collection=snps_collection.data,
-            chromosomes_order=snps_collection.chromosomes_order,
+            snps_collection=snps_collection,
+            chrom_sizes=chrom_sizes,
             segmentation_mode=mode,
             states=args['--states'],
             b_penalty=args['--boundary-penalty'],
-            normalization_tr=args['--allele-reads-tr'],
+            allele_reads_tr=args['--allele-reads-tr'],
             min_seg_snps=args['--min-seg-snps'],
             min_seg_bp=args['--min-seg-bp'],
             post_seg_filter=args['--post-segment-filter'],
@@ -226,7 +229,6 @@ def segmentation_start():
             jobs=args['--jobs'],
             logger=root_logger,
             logger_level=level,  # workaround for mp logging,
-            chromosomes_wrapper=chrom_wrapper,
         )
         try:
             bad_segments = genome_segmentator.estimate_BAD()
@@ -237,6 +239,7 @@ def segmentation_start():
     else:
         badmap_file_path = args['--badmap']
     if args['--visualize'] or args['visualize']:
+        snps_collection = GenomeSNPsHandler(data=snps, chrom_wrapper=chrom_wrapper)
         visualizer = BabachiVisualizer(chromosomes_wrapper=chrom_wrapper)
         visualizer.init_from_snps_collection(
             snps_collection=snps_collection,
