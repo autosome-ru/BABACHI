@@ -1,8 +1,7 @@
 from babachi.helpers import pack
 from abc import ABC, abstractmethod
 import numpy as np
-from babachi.models import BADSegmentsContainer, filter_segments, BADSegment
-from babachi.chrom_wrapper import init_wrapper
+from babachi.models import BADSegmentsContainer, filter_segments, BADSegment, GenomeSNPsHandler
 import logging
 from babachi.logging import root_logger, set_logger_config
 import multiprocessing as mp
@@ -401,8 +400,8 @@ class ChromosomeSegmentation:  # chromosome
         self.chromosome = chromosome  # name
         self.length = length  # length, bp
 
-        self.allele_read_counts_array = self.gs.snps_collection[self.chromosome][:, 1:]
-        self.snps_positions = self.gs.snps_collection[self.chromosome][:, 0]
+        self.allele_read_counts_array = self.gs.snps_collection.data[self.chromosome].read_counts
+        self.snps_positions = self.gs.snps_collection.data[self.chromosome].positions
         self.total_snps_count = len(self.allele_read_counts_array)
         self.segments_container = BADSegmentsContainer()
         if self.total_snps_count == 0:
@@ -488,17 +487,20 @@ class ChromosomeSegmentation:  # chromosome
         else:
             self.segments_container.boundaries_positions.append((self.snps_positions[-1] + 1, self.length))
 
+        boundaries_print = [
+            '{:.2f}Mbp'.format(x / 1000000)
+            if np.issubdtype(type(x), np.number) else
+            '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0] / 1000000, (x[1] - x[0]) / 1000000)
+            for x in self.segments_container.boundaries_positions
+        ]
         self.gs.logger.debug(
             '\nEstimated BADs: {}\nSNP counts: {}\nSNP IDs counts: {}\nCritical gap: {:.0f}bp'
             '\nBoundaries positions (location[deletion length (if any)]): {}'.format(
                 '[' + ', '.join('{:.2f}'.format(BAD) for BAD in self.segments_container.BAD_estimations) + ']',
                 self.segments_container.snps_counts, self.segments_container.snp_id_counts,
                 self.critical_gap_factor * self.effective_length,
-                '[' + ', '.join(map(
-                    lambda x: '{:.2f}Mbp'.format(x / 1000000) if isinstance(x,
-                                                                            (int, float, np.int_, np.float_)) else (
-                        '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0] / 1000000, (x[1] - x[0]) / 1000000)),
-                    self.segments_container.boundaries_positions)) + ']'))
+                '[' + ', '.join(boundaries_print) + ']')
+        )
         self.gs.logger.debug('{} time: {} s'.format(self.chromosome, time.perf_counter() - start_t))
         return self.segments_container
 
@@ -506,7 +508,7 @@ class ChromosomeSegmentation:  # chromosome
 class GenomeSegmentator:  # gs
     def __init__( # TODO move to config
         self, 
-        snps_collection: dict,
+        snps_collection: GenomeSNPsHandler,
         chrom_sizes: dict,
         segmentation_mode='corrected', 
         scoring_mode='marginal',

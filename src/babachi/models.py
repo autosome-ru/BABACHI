@@ -106,31 +106,35 @@ def filter_segments(segments: List[BADSegment], post_seg_filter: int = None):
 
 
 ## SNPs handlers
-class GenomeSNPsHandler:
-    def __init__(self, data: pd.DataFrame, chrom_wrapper: ChromosomesWrapper=None):
-        chrom_wrapper = init_wrapper(chrom_wrapper)
-        self.data = {}
-        gb = data.groupby(['chr'])
-        self.chromosomes_order = data['chr'].unique()
-        for chromosome, group_df in [(group, gb.get_group(group)) for group in gb.groups]:
-            if chromosome in chrom_wrapper.chromosomes:
-                self.data[chromosome] = ChromosomeSNPsHandler.from_df(chromosome, group_df)
-
 
 class ChromosomeSNPsHandler:
-    def __init__(self, chromosome, data: np.ndarray):
-        if not type(data) is np.ndarray:
+    def __init__(self, chromosome, positions: np.ndarray, read_counts: np.ndarray):
+        assert positions.shape[0] == read_counts.shape[0]
+        if not type(read_counts) is np.ndarray:
             raise ValueError('Not a numpy array provided.')
-        if data.shape[0] != 3:
-            raise ValueError(f'Wrong data shape {data.shape}')
+        if read_counts.shape[1] != 2:
+            raise ValueError(f'Wrong data shape {read_counts.shape}')
         self.chromosome = chromosome
-        self.data = data
+        self.read_counts = read_counts
+        self.positions = positions
+
+
+class GenomeSNPsHandler:
+    def __init__(self, *chrom_handlers: ChromosomeSNPsHandler):
+        self.data = {}
+        self.chromosomes_order = []
+        for chrom_handler in chrom_handlers:
+            self.data[chrom_handler.chromosome] = chrom_handler
+            self.chromosomes_order.append(chrom_handler.chromosome)
 
     @classmethod
-    def from_df(cls, chromosome, counts_df):
-        numpy_df = counts_df[['start', 'ref_counts', 'alt_counts']].transpose().to_numpy()
-        return cls(chromosome, numpy_df)
-    
-
-bedfile_line = namedtuple('BED_file_line', field_names=df_header) # Move to dataclasses
-
+    def from_df(cls, data: pd.DataFrame, chrom_wrapper: ChromosomesWrapper=None):
+        chrom_wrapper = init_wrapper(chrom_wrapper)
+        gb = data.groupby(['chr'])
+        snp_handlers = []
+        for chromosome, group_df in [(group, gb.get_group(group)) for group in gb.groups]:
+            if chromosome in chrom_wrapper.chromosomes:
+                positions = group_df['start'].values.astype(np.uint32)
+                read_counts = group_df[['ref_counts', 'alt_counts']].to_numpy().astype(np.float32)
+                snp_handlers.append(ChromosomeSNPsHandler(chromosome, positions, read_counts))
+        return cls(*snp_handlers)

@@ -201,8 +201,8 @@ def segmentation_start():
         exit(0)
         return
     chrom_order = snps['chr'].unique()
-    snps_collection = {chrom: df_slice[['start', 'ref_counts', 'alt_counts']].to_numpy() for chrom, df_slice in snps.groupby('chr')}
     chrom_sizes = {x: chrom_wrapper.chromosomes[x] for x in chrom_order}
+    snps_collection = GenomeSNPsHandler.from_df(data=snps, chrom_wrapper=chrom_wrapper)
 
     if not args['visualize']:
         badmap_file_path = make_file_path_from_dir(args['--output'], file_name)
@@ -239,7 +239,6 @@ def segmentation_start():
     else:
         badmap_file_path = args['--badmap']
     if args['--visualize'] or args['visualize']:
-        snps_collection = GenomeSNPsHandler(data=snps, chrom_wrapper=chrom_wrapper)
         visualizer = BabachiVisualizer(chromosomes_wrapper=chrom_wrapper)
         visualizer.init_from_snps_collection(
             snps_collection=snps_collection,
