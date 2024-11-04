@@ -57,12 +57,12 @@ class Segmentation(ABC):
         else:
             return betainc(trim_cover - 1, N - X, 1 - p)
 
-    def log_likelihood(self, N, X, BAD):
+    def log_likelihood(self, N, X, BAD, trim_tr):
         """
         allele_reads_tr <= X <= N/2
         """
         p = 1.0 / (1.0 + BAD)
-        log_norm = self.get_norm(X, p, N, self.sub_chromosome.chromosome_segmentation.normalization_tr)
+        log_norm = self.get_norm(X, p, N, trim_tr)
         
         if (self.sub_chromosome.gs.individual_likelihood_mode in (
                 'corrected',
@@ -292,8 +292,9 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
             X = self.allele_read_counts_array.min(axis=1)
 
         N = self.allele_read_counts_array.sum(axis=1)
+        trim_tr = self.sub_chromosome.chromosome_segmentation.normalization_tr
         for i in range(len(self.gs.BAD_list)):
-            S[i, :] = vector_likelihood(N, X, BAD=self.gs.BAD_list[i])
+            S[i, :] = vector_likelihood(N, X, BAD=self.gs.BAD_list[i], trim_tr=trim_tr)
         self.P_initial = S
 
     def find_optimal_boundaries(self):
