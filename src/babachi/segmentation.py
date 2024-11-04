@@ -11,6 +11,7 @@ from babachi.stats import fast_find_optimal_borders
 import time
 from typing import List
 from scipy.special import betainc
+import scipy.stats as st
 
 
 class Segmentation(ABC):
@@ -55,8 +56,7 @@ class Segmentation(ABC):
         if self.sub_chromosome.gs.individual_likelihood_mode != 'binomial':
             return np.log1p(self.binomial_norm(p, N, trim_cover) + self.binomial_norm(1 - p, N, trim_cover))
         else:
-            import scipy.stats as st
-            return st.nbinom.logcdf(trim_cover - 1, X, 1 - p) # betainc(trim_cover - 1, X, p)
+            return st.nbinom.logcdf(trim_cover - 1, X, 1 - p)
 
     def log_likelihood(self, N, X, BAD, trim_tr):
         """
