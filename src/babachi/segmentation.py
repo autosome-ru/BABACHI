@@ -55,7 +55,7 @@ class Segmentation(ABC):
         if self.sub_chromosome.gs.individual_likelihood_mode != 'binomial':
             return np.log1p(self.binomial_norm(p, N, trim_cover) + self.binomial_norm(1 - p, N, trim_cover))
         else:
-            return betainc(trim_cover - 1, X, 1 - p)
+            return betainc(trim_cover - 1, X, p)
 
     def log_likelihood(self, N, X, BAD, trim_tr):
         """
