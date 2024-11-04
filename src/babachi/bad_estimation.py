@@ -211,7 +211,7 @@ def segmentation_start():
             segmentation_mode=mode,
             states=args['--states'],
             b_penalty=args['--boundary-penalty'],
-            allele_reads_tr=args['--allele-reads-tr'],
+            normalization_tr=args['--allele-reads-tr'],
             min_seg_snps=args['--min-seg-snps'],
             min_seg_bp=args['--min-seg-bp'],
             post_seg_filter=args['--post-segment-filter'],
