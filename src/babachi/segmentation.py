@@ -10,9 +10,6 @@ from scipy.special import logsumexp
 from babachi.stats import fast_find_optimal_borders
 import time
 from typing import List
-from scipy.special import betainc
-import scipy.stats as st
-
 
 class Segmentation(ABC):
     def __init__(self):
@@ -41,30 +38,27 @@ class Segmentation(ABC):
         # before ith snp in best segmentation
 
     @staticmethod
-    def binomial_norm(p, N, trim_covers):
+    def binomial_norm(p, N, trim_cover):
         result = 0
         current_multiplier = 1
         denominator_multiplier = 1
-        for k in range(trim_covers[0]):
+        for k in range(trim_cover):
             result += current_multiplier * np.power(p, N - k) * np.power(1 - p, k) / denominator_multiplier
-            current_multiplier *= N - k
+            current_multiplier *= int(N - k)
             denominator_multiplier *= k + 1
 
         return -result
 
-    def get_norm(self, X, p, N, trim_cover):
-        if self.sub_chromosome.gs.individual_likelihood_mode != 'binomial':
-            return np.log1p(self.binomial_norm(p, N, trim_cover) + self.binomial_norm(1 - p, N, trim_cover))
-        else:
-            return 0
+    def get_norm(self, p, N, trim_cover):
+        return np.log1p(self.binomial_norm(p, N, trim_cover) + self.binomial_norm(1 - p, N, trim_cover))
 
-    def log_likelihood(self, N, X, BAD, trim_tr):
+    def log_likelihood(self, N, X, BAD):
         """
         allele_reads_tr <= X <= N/2
         """
         p = 1.0 / (1.0 + BAD)
-        log_norm = self.get_norm(X, p, N, trim_tr)
-        
+        #FIXME
+        log_norm = self.get_norm(p, N, self.sub_chromosome.chromosome_segmentation.normalization_tr)
         if (self.sub_chromosome.gs.individual_likelihood_mode in (
                 'corrected',
                 'bayesian') and N == 2 * X) or self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
@@ -231,15 +225,7 @@ class AtomicRegionSegmentation(Segmentation):
 
 
 class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
-    def __init__(
-            self, 
-            genome_segmentator: 'GenomeSegmentator',
-            chromosome_segmentation: 'ChromosomeSegmentation',
-            allele_read_counts_array,
-            normalization_thresholds,
-            snps_positions,
-            part
-        ):
+    def __init__(self, genome_segmentator: 'GenomeSegmentator', chromosome_segmentation: 'ChromosomeSegmentation', allele_read_counts_array, snps_positions, part):
         super().__init__()
 
         self.gs = genome_segmentator
@@ -247,7 +233,6 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.sub_chromosome = self
         self.index_in_chromosome = part
         self.allele_read_counts_array = allele_read_counts_array
-        self.normalization_thresholds = normalization_thresholds
 
         self.total_snps_count = len(self.allele_read_counts_array)
         self.total_cover = self.allele_read_counts_array.sum()
@@ -285,7 +270,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         self.end_snp_index = self.candidates_count - 1
 
     def construct_initial_likelihood_matrices(self):
-        #vector_likelihood = np.vectorize(, excluded=['BAD'])
+        vector_likelihood = np.vectorize(self.log_likelihood, excluded=['BAD'])
         S = np.zeros((len(self.gs.BAD_list), self.total_snps_count), dtype=self.dtype)
         if self.sub_chromosome.gs.individual_likelihood_mode == 'binomial':
             X = self.allele_read_counts_array[:, 0]
@@ -293,9 +278,8 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
             X = self.allele_read_counts_array.min(axis=1)
 
         N = self.allele_read_counts_array.sum(axis=1)
-        trim_tr = self.sub_chromosome.normalization_thresholds
         for i in range(len(self.gs.BAD_list)):
-            S[i, :] = self.log_likelihood(N, X, BAD=self.gs.BAD_list[i], trim_tr=trim_tr)
+            S[i, :] = vector_likelihood(N, X, BAD=self.gs.BAD_list[i])
         self.P_initial = S
 
     def find_optimal_boundaries(self):
@@ -410,17 +394,14 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
 
 
 class ChromosomeSegmentation:  # chromosome
-    def __init__(self, genome_segmentator: 'GenomeSegmentator', chromosome, length):
+    def __init__(self, genome_segmentator: 'GenomeSegmentator', chromosome, length=0):
         self.gs = genome_segmentator
 
         self.chromosome = chromosome  # name
         self.length = length  # length, bp
 
         self.allele_read_counts_array, self.snps_positions = self.unpack_snp_collection()
-        normalization_tr = self.gs.normalization_tr[self.chromosome]
-        if isinstance(normalization_tr, int):
-            normalization_tr = np.array([normalization_tr] * len(self.snps_positions))
-        self.normalization_tr = normalization_tr
+        self.normalization_tr = self.gs.normalization_tr[self.chromosome]
         self.total_snps_count = len(self.allele_read_counts_array)
         self.segments_container = BADSegmentsContainer()
         if self.total_snps_count == 0:
@@ -483,27 +464,21 @@ class ChromosomeSegmentation:  # chromosome
             'Stage 1 subchromosomes (start SNP index, end SNP index): {}'.format(
                 self.get_sub_chromosomes_slices()))
 
-        for part, (start, end) in enumerate(self.get_sub_chromosomes_slices(), 1):
+        for part, (st, ed) in enumerate(self.get_sub_chromosomes_slices(), 1):
             # check
-            unique_positions = len(np.unique(self.snps_positions[start:end]))
+            unique_positions = len(np.unique(self.snps_positions[st: ed]))
             if unique_positions < self.gs.min_subchr_length:
                 self.segments_container += BADSegmentsContainer(
                     boundaries_positions=[],
                     BAD_estimations=[0],
                     likelihoods=[[0] * len(self.gs.BAD_list)],
-                    snps_counts=[end - start],
+                    snps_counts=[ed - st],
                     covers=[0],
                     snp_id_counts=[unique_positions]
                 )
             else:
-                sub_chromosome = SubChromosomeSegmentation(
-                    self.gs, 
-                    self,
-                    self.allele_read_counts_array[start:end],
-                    self.normalization_tr[start:end],
-                    self.snps_positions[start:end],
-                    part
-                )
+                sub_chromosome = SubChromosomeSegmentation(self.gs, self, self.allele_read_counts_array[st: ed],
+                                                           self.snps_positions[st: ed], part)
                 start_t = time.perf_counter()
                 sub_chromosome.estimate_sub_chr()
                 self.gs.logger.debug('Subchromosome time: {}, subchromosome SNPs: {}'.format(
@@ -511,8 +486,8 @@ class ChromosomeSegmentation:  # chromosome
                 ))
 
                 self.segments_container += sub_chromosome.segments_container
-            if end != self.total_snps_count:
-                self.segments_container.boundaries_positions += [(self.snps_positions[end - 1], self.snps_positions[end])]
+            if ed != self.total_snps_count:
+                self.segments_container.boundaries_positions += [(self.snps_positions[ed - 1], self.snps_positions[ed])]
 
         #  boundary for last snp
         if self.length - self.snps_positions[-1] <= self.critical_gap_factor * self.effective_length:
@@ -537,9 +512,7 @@ class ChromosomeSegmentation:  # chromosome
 
 class GenomeSegmentator:  # gs
     def __init__( # TODO move to config
-        self, 
-        snps_collection: dict, 
-        chromosomes_order,
+        self, snps_collection, chromosomes_order,
         segmentation_mode='corrected', scoring_mode='marginal',
         states=None, b_penalty=4, prior=None,
         normalization_tr=5, 
@@ -573,10 +546,11 @@ class GenomeSegmentator:  # gs
                     len(prior), len(self.BAD_list)))
         self.prior = prior
         self.chromosomes_order = chromosomes_order  # ['chr1', 'chr2', ...]
-        self.snps_collection = snps_collection  # input snp collection
         if isinstance(normalization_tr, int):
             normalization_tr = {chrom: normalization_tr for chrom in self.chromosomes_order}
         self.normalization_tr = normalization_tr  # "minimal read count on each allele" snp filter
+
+        self.snps_collection = snps_collection  # input snp collection
 
         self.snp_per_chr_tr = chr_filter  # minimal number of snps in chromosome to start segmentation
         self.atomic_region_length = atomic_region_size  # length of an atomic region in snps
