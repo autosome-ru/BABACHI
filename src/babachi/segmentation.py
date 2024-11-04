@@ -62,7 +62,6 @@ class Segmentation(ABC):
         allele_reads_tr <= X <= N/2
         """
         p = 1.0 / (1.0 + BAD)
-        print('get_norm')
         log_norm = self.get_norm(X, p, N, self.sub_chromosome.chromosome_segmentation.normalization_tr)
         
         if (self.sub_chromosome.gs.individual_likelihood_mode in (
