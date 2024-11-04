@@ -203,7 +203,7 @@ def segmentation_start():
     snps_collection = GenomeSNPsHandler(snps, chrom_wrapper)
     if not args['visualize']:
         badmap_file_path = make_file_path_from_dir(args['--output'], file_name)
-        mode = 'binomial'
+        mode = 'corrected'
         t = time.perf_counter()
         genome_segmentator = GenomeSegmentator(
             snps_collection=snps_collection.data,

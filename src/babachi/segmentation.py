@@ -292,7 +292,7 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
             X = self.allele_read_counts_array.min(axis=1)
 
         N = self.allele_read_counts_array.sum(axis=1)
-        trim_tr = self.sub_chromosome.chromosome_segmentation.normalization_tr
+        trim_tr = self.sub_chromosome.normalization_thresholds
         for i in range(len(self.gs.BAD_list)):
             S[i, :] = vector_likelihood(N, X, BAD=self.gs.BAD_list[i], trim_tr=trim_tr)
         self.P_initial = S
