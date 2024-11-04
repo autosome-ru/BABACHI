@@ -400,8 +400,8 @@ class ChromosomeSegmentation:  # chromosome
         self.chromosome = chromosome  # name
         self.length = length  # length, bp
 
-        self.allele_read_counts_array = self.gs.snps_collection.data[self.chromosome].read_counts
-        self.snps_positions = self.gs.snps_collection.data[self.chromosome].positions
+        self.allele_read_counts_array = self.gs.snps_collection[self.chromosome].read_counts
+        self.snps_positions = self.gs.snps_collection[self.chromosome].positions
         self.total_snps_count = len(self.allele_read_counts_array)
         self.segments_container = BADSegmentsContainer()
         if self.total_snps_count == 0:

@@ -126,6 +126,9 @@ class GenomeSNPsHandler:
         for chrom_handler in chrom_handlers:
             self.data[chrom_handler.chromosome] = chrom_handler
             self.chromosomes_order.append(chrom_handler.chromosome)
+    
+    def __getitem__(self, item) -> ChromosomeSNPsHandler:
+        return self.data[item]
 
     @classmethod
     def from_df(cls, data: pd.DataFrame, chrom_wrapper: ChromosomesWrapper=None):
