@@ -225,7 +225,14 @@ class AtomicRegionSegmentation(Segmentation):
 
 
 class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
-    def __init__(self, genome_segmentator: 'GenomeSegmentator', chromosome_segmentation, allele_read_counts_array, snps_positions, part):
+    def __init__(
+            self,
+            genome_segmentator: 'GenomeSegmentator',
+            chromosome_segmentation: 'ChromosomeSegmentation', 
+            allele_read_counts_array,
+            snps_positions,
+            part
+        ):
         super().__init__()
 
         self.gs = genome_segmentator
@@ -376,8 +383,8 @@ class SubChromosomeSegmentation(Segmentation):  # sub_chromosome
         for first, last in atomic_regions_limits:
             counter += 1
             self.gs.logger.debug(
-                'Processing {} out of {} atomic region{} from SNP {} to {} for {} (subchromosome {} of {}).'.format(
-                    counter, len(atomic_regions_limits), 's' * bool((len(atomic_regions_limits) - 1)),
+                'Processing {}/{} atomic regions from SNP {} to {} for {} (subchromosome {} of {}).'.format(
+                    counter, len(atomic_regions_limits),
                     first, last, self.chromosome_segmentation.chromosome,
                     self.index_in_chromosome,
                     len(self.chromosome_segmentation.get_sub_chromosomes_slices())))
