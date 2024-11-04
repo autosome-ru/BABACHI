@@ -457,21 +457,21 @@ class ChromosomeSegmentation:  # chromosome
             'Stage 1 subchromosomes (start SNP index, end SNP index): {}'.format(
                 self.get_sub_chromosomes_slices()))
 
-        for part, (st, ed) in enumerate(self.get_sub_chromosomes_slices(), 1):
+        for part, (start, end) in enumerate(self.get_sub_chromosomes_slices(), 1):
             # check
-            unique_positions = len(np.unique(self.snps_positions[st: ed]))
+            unique_positions = len(np.unique(self.snps_positions[start: end]))
             if unique_positions < self.gs.min_subchr_length:
                 self.segments_container += BADSegmentsContainer(
                     boundaries_positions=[],
                     BAD_estimations=[0],
                     likelihoods=[[0] * len(self.gs.BAD_list)],
-                    snps_counts=[ed - st],
+                    snps_counts=[end - start],
                     covers=[0],
                     snp_id_counts=[unique_positions]
                 )
             else:
-                sub_chromosome = SubChromosomeSegmentation(self.gs, self, self.allele_read_counts_array[st: ed],
-                                                           self.snps_positions[st: ed], part)
+                sub_chromosome = SubChromosomeSegmentation(self.gs, self, self.allele_read_counts_array[start: end],
+                                                           self.snps_positions[start: end], part)
                 start_t = time.perf_counter()
                 sub_chromosome.estimate_sub_chr()
                 self.gs.logger.debug('Subchromosome time: {}, subchromosome SNPs: {}'.format(
@@ -479,8 +479,8 @@ class ChromosomeSegmentation:  # chromosome
                 ))
 
                 self.segments_container += sub_chromosome.segments_container
-            if ed != self.total_snps_count:
-                self.segments_container.boundaries_positions += [(self.snps_positions[ed - 1], self.snps_positions[ed])]
+            if end != self.total_snps_count:
+                self.segments_container.boundaries_positions += [(self.snps_positions[end - 1], self.snps_positions[end])]
 
         #  boundary for last snp
         if self.length - self.snps_positions[-1] <= self.critical_gap_factor * self.effective_length:
@@ -499,7 +499,7 @@ class ChromosomeSegmentation:  # chromosome
                                                                             (int, float, np.int_, np.float_)) else (
                         '{:.2f}Mbp[{:.2f}Mbp]'.format(x[0] / 1000000, (x[1] - x[0]) / 1000000)),
                     self.segments_container.boundaries_positions)) + ']'))
-        self.gs.logger.debug('{} time: {} s\n\n'.format(self.chromosome, time.perf_counter() - start_t))
+        self.gs.logger.debug('{} time: {} s'.format(self.chromosome, time.perf_counter() - start_t))
         return self.segments_container
 
 
