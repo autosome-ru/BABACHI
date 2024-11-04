@@ -40,11 +40,11 @@ class Segmentation(ABC):
         # before ith snp in best segmentation
 
     @staticmethod
-    def binomial_norm(p, N, trim_cover):
+    def binomial_norm(p, N, trim_covers):
         result = 0
         current_multiplier = 1
         denominator_multiplier = 1
-        for k in range(trim_cover):
+        for k in range(trim_covers[0]):
             result += current_multiplier * np.power(p, N - k) * np.power(1 - p, k) / denominator_multiplier
             current_multiplier *= int(N - k)
             denominator_multiplier *= k + 1
@@ -62,7 +62,7 @@ class Segmentation(ABC):
         allele_reads_tr <= X <= N/2
         """
         p = 1.0 / (1.0 + BAD)
-
+        print('get_norm')
         log_norm = self.get_norm(X, p, N, self.sub_chromosome.chromosome_segmentation.normalization_tr)
         
         if (self.sub_chromosome.gs.individual_likelihood_mode in (
