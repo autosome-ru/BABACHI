@@ -1,10 +1,10 @@
-from collections import namedtuple
-from babachi.helpers import df_header, pack
-from babachi.chrom_wrapper import ChromosomesWrapper, init_wrapper
 import math
 import pandas as pd
 import numpy as np
 from typing import List
+
+from babachi.helpers import pack
+from babachi.chrom_wrapper import ChromosomesWrapper, init_wrapper
 
 
 class BADSegmentsContainer:
