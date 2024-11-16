@@ -569,7 +569,7 @@ class GenomeSegmentator:  # gs
         self.chr_segmentations = []  # list of ChromosomeSegmentation instances
 
         for chromosome, length in self.chrom_sizes.items():
-            chr_segmentation = ChromosomeSegmentation(self, chromosome, length - 1) # WTF, why -1?
+            chr_segmentation = ChromosomeSegmentation(self, chromosome, length)
             self.logger.debug('{} total SNP count: {}'.format(chromosome, chr_segmentation.total_snps_count))
             self.logger.debug('{} length: {}'.format(chromosome, length))
             self.chr_segmentations.append(chr_segmentation)
