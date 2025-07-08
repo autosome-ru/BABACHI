@@ -449,7 +449,7 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self) -> BADSegmentsContainer:
-        self.gs.logger.info('Processing SNPs in {}'.format(self.chromosome))
+        self.gs.logger.info('Processing probes on {}'.format(self.chromosome))
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
             return self.segments_container
 
