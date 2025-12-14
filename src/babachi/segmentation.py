@@ -198,10 +198,12 @@ class AtomicRegionSegmentation(Segmentation):
 
                     z_penalty = 0
                     if self.sub_chromosome.gs.min_seg_snps or self.sub_chromosome.gs.min_seg_bp:
-                        piece_positions = self.snps_positions[
+                        if i != self.candidates_count:
+                            piece_positions = self.snps_positions[
                                           self.candidate_numbers[k] + 1 - self.first_snp_number: self.candidate_numbers[i] + 1 - self.first_snp_number
-                            ] \
-                            if i != self.candidates_count else self.snps_positions[
+                            ] 
+                        else:
+                            piece_positions = self.snps_positions[
                                                                self.candidate_numbers[k] + 1 - self.first_snp_number:]
                         if len(np.unique(piece_positions)) < self.sub_chromosome.gs.min_seg_snps or \
                                 piece_positions[-1] - piece_positions[0] < self.sub_chromosome.gs.min_seg_bp:
@@ -449,7 +451,7 @@ class ChromosomeSegmentation:  # chromosome
         return sub_chromosome_slice_indexes
 
     def estimate_chr(self) -> BADSegmentsContainer:
-        self.gs.logger.info('Processing probes on {}'.format(self.chromosome))
+        self.gs.logger.info(f'Processing probes on {self.chromosome}')
         if not self.total_snps_count or self.total_snps_count < self.gs.snp_per_chr_tr:
             return self.segments_container
 

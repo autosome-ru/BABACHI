@@ -88,14 +88,20 @@ class BabachiVisualizer:
         return None
 
     @staticmethod
-    def filter_data_by_chromosome(chromosome, BAD_table, snps_collection: GenomeSNPsHandler = None,
-                                  cosmics=None):
+    def filter_data_by_chromosome(chromosome, BAD_table, snps_collection: GenomeSNPsHandler = None, cosmics=None):
         BAD_segments = BAD_table[BAD_table['#chr'] == chromosome]
         if BAD_segments.empty:
             return None
         if snps_collection is not None:
-            column_names = ['pos', 'ref_c', 'alt_c']
-            snps = pd.DataFrame(dict(zip(column_names, zip(*snps_collection.data[chromosome].data.transpose()))))
+            chr_snps = snps_collection[chromosome]
+            positions = chr_snps.positions
+            read_counts = chr_snps.read_counts
+
+            snps = pd.DataFrame({
+                'pos': positions,
+                'ref_c': read_counts[:, 0],
+                'alt_c': read_counts[:, 1],
+            })
             if snps.empty:
                 return None
             snps['AD'] = snps[['ref_c', 'alt_c']].max(axis=1) / snps[['ref_c', 'alt_c']].min(axis=1)
